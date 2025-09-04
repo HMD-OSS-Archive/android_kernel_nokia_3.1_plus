@@ -165,6 +165,7 @@ struct manuf_onetimeftm_flag
 	char reserved[MANUF_RESERVED_LEN];
 };
 
+// for SKUID&Multi-Splash
 struct manuf_SKU_flag
 {
 	char name[MANUF_NAME_LEN];
@@ -248,7 +249,7 @@ struct manuf_als_cali
 /* add for gyro calibration 20150912 by xurd end*/
 
 
-/*for store security information begin*/
+/* for store security information begin*/
 struct manuf_need_sec_chk
 {
 	char sec_bt_chk;
@@ -267,7 +268,7 @@ struct manuf_sec_info
 	unsigned int boot_size; 
 	unsigned int recovery_size;
 };
-/*for store security information end*/
+/* for store security information end*/
 
 struct manuf_sim_info
 {

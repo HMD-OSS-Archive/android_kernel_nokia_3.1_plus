@@ -689,7 +689,7 @@ void arch_reset(char mode, const char *cmd)
 	} else if (cmd && !strcmp(cmd, "kpoc")) {
 		rtc_mark_kpoc();
 	}
-
+	/*Begin: Sunyongshan add for ScsiCmdAgent tool */
 #if 0
 	else if(cmd && !strcmp(cmd, "ftm"))      //FTM
 	{
@@ -705,9 +705,9 @@ void arch_reset(char mode, const char *cmd)
 	}
 #endif
     else if(cmd && !strcmp(cmd, "memory_test")) {     //RAMTEST
-        rtc_mark_ramtest(); 
+        rtc_mark_ramtest();  //sunjie +
 
-	
+	/*End:add for ScsiCmdAgent tool of FIH,johnny,2016/02/29*/
 	} else {
 		reboot = WD_SW_RESET_BYPASS_PWR_KEY;
 	}

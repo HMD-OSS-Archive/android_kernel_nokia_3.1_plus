@@ -98,6 +98,7 @@ config EXT4_FS_SECURITY
 	  If you are not using a security module that requires using
 	  extended attributes for file security labels, say N.
 
+# Sunyongshan
 config EXT4_FS_XATTR
 	bool "Ext4 FileSys Xattr"
 	depends on EXT4_FS

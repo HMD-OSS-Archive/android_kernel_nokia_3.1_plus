@@ -649,7 +649,6 @@ static void set_shutter(kal_uint32 shutter)
 	}
 
 	// Update Shutter
-
 	if(shutter >= 196077)
 	{
 		write_shutter(shutter);
@@ -659,7 +658,6 @@ static void set_shutter(kal_uint32 shutter)
 		write_cmos_sensor(0x0340, imgsensor.frame_length & 0xFFFF);
 		write_cmos_sensor(0X0202, shutter & 0xFFFF);
 	}
-
 	LOG_INF("Exit! shutter =%d, framelength =%d\n", shutter,imgsensor.frame_length);
 
 }
@@ -1723,7 +1721,7 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 
                 if (mid != 2) 
                 {
-                    printk("3l6 read out mid %d, wanted truly mid 2, return connect fail!\n", mid);
+                    printk("jasondz: 3l6 read out mid %d, wanted truly mid 2, return connect fail!\n", mid);
                     *sensor_id = 0xFFFFFFFF;
                     return ERROR_SENSOR_CONNECT_FAIL;
                 }
@@ -1736,10 +1734,12 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 
                 if (fih_3l6_awbaf_data[16] == 1 && fih_3l6_awbaf_data[17] == 2 && fih_3l6_awbaf_data[18] == 3) 
                 {
+                    // jasondz to repair awb error module, caused by test code mistake 
                     char pusendcmd[11] = {(char)(0x1a >> 8) , (char)(0x1a & 0xFF) ,0x50,0x99,0x99,0x64,0x52,0x9e,0x9d,0x66,0xdc};
                     iWriteRegI2C(pusendcmd , 11, 0xA0);
                     mdelay(5);
 
+                    // jasondz, re-read awb data
                     if (fih_3l6_awbaf_data != NULL) {
                         fih_read_eeprom_data(0xa, 25, fih_3l6_awbaf_data, 0xA0);
                         fih_read_eeprom_data(0x774, 9, fih_3l6_awbaf_data+25, 0xA0);
@@ -1762,12 +1762,12 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
                     printk("create proc %s fail!\n", MC_PROC);
                 }
 
-				printk("3l6 truly get id ok! ReadOut sensor id: 0x%x, Wanted sensor id:0x%x\n", *sensor_id, imgsensor_info.sensor_id);
+				printk("jasondz: 3l6 truly get id ok! ReadOut sensor id: 0x%x, Wanted sensor id:0x%x\n", *sensor_id, imgsensor_info.sensor_id);
 
 				return ERROR_NONE;
 			}
 
-            printk("3l6 truly get id fail! ReadOut sensor id: 0x%x, Wanted sensor id:0x%x\n", *sensor_id, imgsensor_info.sensor_id);
+            printk("jasondz: 3l6 truly get id fail! ReadOut sensor id: 0x%x, Wanted sensor id:0x%x\n", *sensor_id, imgsensor_info.sensor_id);
 			retry--;
 		} while(retry > 0);
 		i++;

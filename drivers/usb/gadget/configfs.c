@@ -236,7 +236,7 @@ GI_DEVICE_DESC_SIMPLE_RW(bDeviceSubClass, u8);
 GI_DEVICE_DESC_SIMPLE_RW(bDeviceProtocol, u8);
 GI_DEVICE_DESC_SIMPLE_RW(bMaxPacketSize0, u8);
 GI_DEVICE_DESC_SIMPLE_RW(idVendor, u16);
-/*start command */
+/* OEM scsi command */
 //GI_DEVICE_DESC_SIMPLE_RW(idProduct, u16);
 GI_DEVICE_DESC_SIMPLE_R_u16(idProduct);
 
@@ -257,13 +257,13 @@ static ssize_t gadget_dev_desc_idProduct_store(struct config_item *item,
 	return len;
 }
 
-// uses this to get current pid
+//oem_usb uses this to get current pid
 int android_usb_product_id(void)
 {
 	return fihPid;
 }
 EXPORT_SYMBOL(android_usb_product_id);
-/* end*/
+/* end */
 
 GI_DEVICE_DESC_SIMPLE_R_u16(bcdDevice);
 

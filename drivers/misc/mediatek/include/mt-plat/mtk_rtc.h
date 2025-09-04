@@ -61,7 +61,6 @@ extern void rtc_irq_handler(void);
 extern bool crystal_exist_status(void);
 extern void mt_power_off(void);
 
-/*Begin*/
 #if 0
 extern void rtc_mark_ftm(void);
 extern void rtc_mark_meta(void);
@@ -70,7 +69,6 @@ extern void rtc_mark_preloader(void);
 extern void rtc_mark_ramtest(void);	
 extern int get_rtc_spare_vbat_value(void);
 extern int set_rtc_spare_vbat_value(int val);
-/*End*/
 
 #else/*ifdef CONFIG_MTK_RTC*/
 #define rtc_read_hw_time()              ({ 0; })

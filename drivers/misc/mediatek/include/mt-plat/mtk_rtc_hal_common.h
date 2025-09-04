@@ -34,15 +34,13 @@ enum rtc_spare_enum {
 	RTC_32K_LESS,
 	RTC_LP_DET,
     RTC_FG_INIT,
-	/*Begin */
 #if 0
 	RTC_SPAR0_FIH_FTM,
 	RTC_SPAR0_FIH_META,
 	RTC_SPAR0_FIH_PRELOADER,
 #endif
-    RTC_SPAR0_FIH_RAMTEST, 
+    RTC_SPAR0_FIH_RAMTEST,
 	RTC_VBAT,
-	/*End*/
 
 	RTC_SPAR_NUM
 };

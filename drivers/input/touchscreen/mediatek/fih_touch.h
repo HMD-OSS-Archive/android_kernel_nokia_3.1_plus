@@ -21,8 +21,8 @@ struct fih_touch_cb {
 	int (*touch_gesture_available_read)(void);
 	void (*touch_gesture_available_write)(long);
 	#endif
-	int (*touch_double_tap_read)(void);	//SW4-HL-Touch-ImplementDoubleTap-00+_20170623
-	int (*touch_double_tap_write)(int);	//SW4-HL-Touch-ImplementDoubleTap-00+_20170623
+	int (*touch_double_tap_read)(void);
+	int (*touch_double_tap_write)(int);
 	void (*touch_alt_rst)(void);
 	int (*touch_alt_st_count)(void);
 	void (*touch_alt_st_enable)(int);

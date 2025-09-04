@@ -86,14 +86,14 @@
 	};
 	camera_pins_cam1_pnd_0: cam1@2 {
 		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO94__FUNC_GPIO94>; 
+			pinmux = <PINMUX_GPIO94__FUNC_GPIO94>;  /*FIH For FCAM1_DVDD_1P2_EN*/
 			slew-rate = <1>;
 			output-low;
 		};
 	};
 	camera_pins_cam1_pnd_1: cam1@3 {
 		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO94__FUNC_GPIO94>;
+			pinmux = <PINMUX_GPIO94__FUNC_GPIO94>;/*FIH For FCAM1_DVDD_1P2_EN*/
 			slew-rate = <1>;
 			output-high;
 		};
@@ -140,22 +140,22 @@
 			output-high;
 		};
 	};
-
+/*FIH Front Camera Start*/
 	camera_pins_cam1_vcama_0: cam1@vcam0 {
 		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO151__FUNC_GPIO151>; /*  For FCAM1_AVDD_2P8_EN */
+			pinmux = <PINMUX_GPIO151__FUNC_GPIO151>; /* FIH For FCAM1_AVDD_2P8_EN */
 			slew-rate = <1>;
 			output-low;
 		};
 	};
 	camera_pins_cam1_vcama_1: cam1@vcam1 {
 		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO151__FUNC_GPIO151>; /* For FCAM1_AVDD_2P8_EN */
+			pinmux = <PINMUX_GPIO151__FUNC_GPIO151>; /* FIH For FCAM1_AVDD_2P8_EN */
 			slew-rate = <1>;
 			output-high;
 		};
 	};
-
+/*FIH Front Camera End*/
 	camera_pins_cam2_vcama_0: cam2@vcam0 {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO176__FUNC_GPIO176>;
@@ -204,8 +204,8 @@
 	pinctrl-12 = <&camera_pins_cam2_pnd_1>;
 	pinctrl-13 = <&camera_pins_cam0_vcamd_0>;
 	pinctrl-14 = <&camera_pins_cam0_vcamd_1>;
-	pinctrl-15 = <&camera_pins_cam1_vcama_0>;
-	pinctrl-16 = <&camera_pins_cam1_vcama_1>;
+	pinctrl-15 = <&camera_pins_cam1_vcama_0>; /*FIH Front Camera Start*/
+	pinctrl-16 = <&camera_pins_cam1_vcama_1>; /*FIH Front Camera End*/
 	pinctrl-17 = <&camera_pins_cam2_vcama_0>;
 	pinctrl-18 = <&camera_pins_cam2_vcama_1>;
 	pinctrl-19 = <&camera_pins_cam0_mclk_off>;

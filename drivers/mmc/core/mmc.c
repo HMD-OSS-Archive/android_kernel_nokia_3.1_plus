@@ -52,7 +52,7 @@ static const unsigned int tacc_mant[] = {
 	0,	10,	12,	13,	15,	20,	25,	30,
 	35,	40,	45,	50,	55,	60,	70,	80,
 };
-u8 mem_cid[9] = {0};		
+u8 mem_cid[9] = {0};
 
 static const struct mmc_fixup mmc_ext_csd_fixups[] = {
 	/*
@@ -1708,7 +1708,6 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		card->rca = 1;
 		memcpy(card->raw_cid, cid, sizeof(card->raw_cid));
 		
-		/*Begin, */
 		mem_cid[0] = (card->raw_cid[0] >> 24) & 0xFF; /* Manufacturer ID */
 		mem_cid[1] = (card->raw_cid[0] >> 16) & 0xFF; /* Reserved(6)+Card/BGA(2) */
 		mem_cid[2] = (card->raw_cid[0] >> 8 ) & 0xFF; /* OEM/Application ID */
@@ -1720,7 +1719,6 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		mem_cid[8] = (card->raw_cid[2] >> 24) & 0xFF; /* Product name [5] */
 		printk("mmc_init_card() %x,%x,%x,%x,%x,%x,%x,%x,%x\r\n", mem_cid[0], mem_cid[1],
 			mem_cid[2], mem_cid[3], mem_cid[4], mem_cid[5], mem_cid[6], mem_cid[7], mem_cid[8]);
-		/*End,*/
 	}
 
 	/*

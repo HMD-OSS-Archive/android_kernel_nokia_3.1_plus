@@ -15,12 +15,12 @@
 
 #define FAILED -1;
 #define OK 1;
-/*J6000092 add for proinfo partition cache start*/
+/*oem add for proinfo partition cache start*/
 static struct manuf_data fih_proinfo_data;
 static int read_flag = 0;
 static int write_flag = 0;
 static struct manuf_data manuf_data;
-/*J6000092 add for proinfo partition cache end*/
+/*oem add for proinfo partition cache end*/
 
 int write_ef(struct manuf_data * wdata)
 {
@@ -63,10 +63,10 @@ int write_ef(struct manuf_data * wdata)
 
 	set_fs(oldfs);
 
-	/*J6000092 add for proinfo partition cache start*/
+	/*oem add for proinfo partition cache start*/
 	memcpy(&fih_proinfo_data, wdata, sizeof(struct manuf_data));
 	write_flag = 1;
-	/*J6000092 add for proinfo partition cache end*/
+	/*oem add for proinfo partition cache end*/
 
 	return 0;
 }
@@ -84,7 +84,7 @@ int read_ef(struct manuf_data * rdata)
 
 	printk("read_ef() read_flag = %d, write_flag = %d\n", read_flag, write_flag);
 
-	/*J6000092 modify for proinfo partition cache start*/
+	/*oem modify for proinfo partition cache start*/
 	if(read_flag == 0 || write_flag == 1)
 	{
 		oldfs = get_fs();
@@ -119,7 +119,7 @@ int read_ef(struct manuf_data * rdata)
 	{
 		memcpy(rdata, &fih_proinfo_data, sizeof(struct manuf_data));        
 	}
-	/*J6000092 modify for proinfo partition cache end*/
+	/*oem modify for proinfo partition cache end*/
 
 	return 0;
 }

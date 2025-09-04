@@ -27,12 +27,12 @@
 #endif
 #define FIH_PROC_TP_DOUBLE_TAP				"AllHWList/tp_double_tap"
 
-// add for ALT use
+//Win add for ALT use
 #define FIH_PROC_TP_ALT_RST				"AllHWList/tp_alt_rst"
 #define FIH_PROC_TP_ALT_ST_COUNT		"AllHWList/tp_alt_st_count"
 #define FIH_PROC_TP_ALT_ST_ENABLE		"AllHWList/tp_alt_st_enable"
 #define FIH_PROC_TP_ALT_ST_DISABLE		"AllHWList/tp_alt_st_disable"
-// add for ALT use
+//Win add for ALT use
 
 extern bool ResultSelfTest;
 extern void touch_selftest(void);
@@ -49,11 +49,11 @@ extern void touch_gesture_write(int);
 extern int touch_gesture_read(void);
 extern int touch_gesture_available_read(void);
 extern int touch_gesture_available_write(long);
-// add for ALT test
+//win add for ALT test
 extern void touch_alt_rst(int);
 extern int touch_alt_st_count(int);
 extern void touch_alt_st_enable(int);
-// add for ALT test
+//win add for ALT test
 
 #if 0
 EXPORT_SYMBOL(ResultSelfTest);
@@ -96,7 +96,7 @@ struct fih_touch_cb touch_cb = {
 	.touch_alt_st_enable = NULL
 };
 
-int tp_probe_success = 0;	//SW4-HL-TouchPanel-AccordingToTPDriverProbeResultToDecideWhetherToCreateVirtualFileOrNot-00+_20151130
+int tp_probe_success = 0;
 
 char fih_touch[32] = "unknown";
 void fih_info_set_touch(char *info)
@@ -470,7 +470,6 @@ static struct file_operations touch_gesture_available_proc_file_ops = {
 //touch_gesture available end
 #endif
 
-//SW4-HL-Touch-ImplementDoubleTap-00+{_20170623
 static int fih_touch_double_tap_read_show(struct seq_file *m, void *v)
 {
 	if (touch_cb.touch_double_tap_read != NULL)
@@ -544,7 +543,6 @@ static struct file_operations touch_double_tap_proc_file_ops = {
 	.llseek  = seq_lseek,
 	.release = single_release
 };
-//SW4-HL-Touch-ImplementDoubleTap-00+}_20170623
 
 //win add for ALT test
 static int fih_touch_alt_rst_show(struct seq_file *m, void *v)
@@ -645,7 +643,7 @@ static struct file_operations touch_alt_st_enable_file_ops = {
 	.llseek  = seq_lseek,
 	.release = single_release
 };
-// add for ALT test
+//win add for ALT test
 
 //static int __init fih_touch_init(void)
 int fih_touch_proc_init(void)
@@ -732,7 +730,6 @@ int fih_touch_proc_init(void)
 			pr_err("fail to create proc/%s\n", FIH_PROC_TP_DOUBLE_TAP);
 			return (1);
 		}
-	
 
 		//win add for ALT test
 		if (proc_create(FIH_PROC_TP_ALT_RST, 0, NULL, &touch_alt_rst_file_ops) == NULL)

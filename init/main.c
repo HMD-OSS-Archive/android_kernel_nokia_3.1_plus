@@ -376,7 +376,7 @@ static void __init setup_command_line(char *command_line)
 
 
 
-/* Begin */
+/* Begin, OEM feature, 20171201 */
 char fih_skuid[8] = {'0'};
 bool fih_efuse_enable = 1;
 unsigned short fih_hwid = 0xFF;
@@ -409,7 +409,7 @@ unsigned short fih_gethwid(void)
 }
 EXPORT_SYMBOL(fih_gethwid);
 
-/*sunjie + for runin*/
+/*for runin*/
 unsigned int fih_get_ramtest_result(void)
 {
     unsigned char result=0;
@@ -711,7 +711,7 @@ void fih_get_skuid(void)
 	strncpy(fih_skuid, p, 5);
 	//printk("fih_get_skuid fih_skuid = %s\n", fih_skuid);
 }
-/* END */
+/* END, OEM feature, 20171201 */
 
 
 /*

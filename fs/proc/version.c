@@ -5,6 +5,7 @@
 #include <linux/seq_file.h>
 #include <linux/utsname.h>
 
+// Sunyongshan
 extern char fih_skuid[8];
 
 static int version_proc_show(struct seq_file *m, void *v)
@@ -44,6 +45,7 @@ static int version_proc_show(struct seq_file *m, void *v)
 
 		// set user@machine as evercoss@android
 		//strncpy(&new_linux_version[offset], "Tsm-0@tsm-Server0", 17);
+        strncpy(&new_linux_version[offset], "Hmdi@hmdi-Server1", 17);//jennyxu modify 2019.1.9
 		offset += 17;
 
 		// copy ) and others

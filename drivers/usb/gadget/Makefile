@@ -16,7 +16,6 @@ ccflags-y	+= -I$(srctree)/drivers/usb/gadget/udc -I$(srctree)/drivers/usb/gadget
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/c2k_ccci/
 ccflags-y += -I$(srctree)/drivers/usb/gadget/
 
-
 obj-$(CONFIG_USB_LIBCOMPOSITE)	+= libcomposite.o
 libcomposite-y			:= usbstring.o config.o epautoconf.o
 libcomposite-y			+= composite.o functions.o configfs.o u_f.o

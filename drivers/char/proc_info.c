@@ -14,9 +14,9 @@
 #include <linux/delay.h>
 #include <linux/kthread.h>
 #include <linux/io.h>
-//for AB partition BEGIN
+// 20180331add fver patches for AB partition BEGIN
 #include <asm/setup.h>
-//for AB partition END
+// 20180331add fver patches for AB partition END
 
 #include <linux/errno.h>
 
@@ -41,13 +41,13 @@ extern unsigned short fih_get_memory_type(void);
 extern unsigned short fih_get_memory_vendor(void); 
 extern unsigned long long fih_get_emmc_size(void);
 extern unsigned long long fih_get_emmc_usersize(void);
-extern unsigned int fih_get_ramtest_result(void); 
+extern unsigned int fih_get_ramtest_result(void);
 extern unsigned short fih_get_simslot(void);
 
 static char causeStr[99];
-
+// 20180331add fver patches for AB partition BEGIN
 static char slot_suffix[8];
-
+// 20180331add fver patches for AB partition END
 static char *fver_preload;
 static int fver_len = 65536;
 static int fver_open_times = 0;
@@ -57,7 +57,7 @@ static char str_imei2[20];
 static char str_pid[33];
 static char str_uicolor[20];
 
-/* 
+/*
  * Add for WCN MAC @{
  */
 #define MAC_ADDR_MAXLEN    20
@@ -92,11 +92,11 @@ static int sim_card_slot;
 
 #define FIH_PROC_DIR   "AllHWList"
 #define FIH_PROC_PATH  "AllHWList/draminfo"
-#define FIH_PROC_TESTRESULT_PATH  "dramtest_result" //"AllHWList/dramtest_result"//
+#define FIH_PROC_TESTRESULT_PATH  "dramtest_result" //"AllHWList/dramtest_result"// add for memory test in RUNIN
 #define FIH_PROC_SIZE  32
 
 static char fih_proc_data[FIH_PROC_SIZE] = "";
-static char fih_proc_test_result[FIH_PROC_SIZE] = {0};// RUNIN
+static char fih_proc_test_result[FIH_PROC_SIZE] = {0};// add for memory test in RUNIN
 
 #define FIH_MEM_ST_HEAD  0x6400000  /* HFME */
 #define FIH_MEM_ST_TAIL  0x1400000  /* EMFT */
@@ -109,7 +109,7 @@ struct st_fih_mem {
         unsigned int mfr_id;
         unsigned int ddr_type;
         unsigned int size_mb;
-        unsigned int test_result;//test in RUNIN
+        unsigned int test_result;// add for memory test in RUNIN
         unsigned int tail;
 };
 struct st_fih_mem dram;
@@ -130,7 +130,7 @@ static void fih_dram_setup_MEM(void)
                 dram.mfr_id = 0;
                 dram.ddr_type = 0;
                 dram.size_mb = 0;
-                dram.test_result = 0;
+                dram.test_result = 0;// add for memory test in RUNIN
                 dram.tail = FIH_MEM_ST_TAIL;
         }
         else
@@ -147,7 +147,7 @@ static void fih_dram_setup_MEM(void)
                 dram.mfr_id = 0;
                 dram.ddr_type = 0;
                 dram.size_mb = 0;
-                dram.test_result = 0;
+                dram.test_result = 0;// add for memory test in RUNIN
                 dram.tail = FIH_MEM_ST_TAIL;
         }
 
@@ -170,7 +170,10 @@ static void fih_dram_setup_MEM(void)
         snprintf(size, sizeof(size), " %dMB", dram.size_mb);
         strcat(buf, size);
 
+        // add for memory test in RUNIN START
+        //To-Do: use switch case to identify PASS/FAIL
         snprintf(fih_proc_test_result, sizeof(fih_proc_test_result), "%d", dram.test_result);
+        // add for memory test in RUNIN END
 }
 
 //static int draminfo_test_result_wtite(struct file *flip,const char __user *buf,size_t count,loff_t *f_pos)
@@ -202,33 +205,39 @@ static ssize_t draminfo_test_result_wtite(struct file *flip,const char __user *b
     return ret;
 }
 
+//,20180331 add fver patches for AB partition BEGIN
 static int __init  slot_suffix_param(char *line)
 {
         strlcpy(slot_suffix, line, sizeof(slot_suffix));
         return 1;
 }
 __setup("androidboot.slot_suffix=", slot_suffix_param);
+// 20180331add fver patches for AB partition END
 
 /**************************************************************************/
 static int fver_show(struct seq_file *s, void *unused)
 {
 	struct file *fver_filp = NULL;
+// 20180331add fver patches for AB partition BEGIN
 	char str_fver[128];
+// 20180331add fver patches for AB partition END
 	mm_segment_t oldfs;
 	loff_t pos = 0;
 
+// 20180331add fver patches for AB partition BEGIN
 	memset(str_fver, 0, 128);
 	strcpy(str_fver, fver_BLOCK);
 	strcat(str_fver, slot_suffix);
+// 20180331add fver patches for AB partition END
 
 	if(!fver_open_times)
 	{
 		oldfs = get_fs();
 		set_fs(KERNEL_DS);
-
+// 20180331add fver patches for AB partition BEGIN
 		//fver_filp = filp_open(fver_BLOCK, O_RDONLY, 0);
 		fver_filp = filp_open(str_fver, O_RDONLY, 0);
-
+// 20180331add fver patches for AB partition END
 
 		if(!IS_ERR(fver_filp))
 		{
@@ -240,10 +249,10 @@ static int fver_show(struct seq_file *s, void *unused)
 		}
 		else
 		{
-
+// 20180331add fver patches for AB partition BEGIN
 			//printk("[dw]open %s fail\n", fver_BLOCK);
 			printk("[dw]open %s fail\n", str_fver);
-
+// 20180331add fver patches for AB partition END
 		}
 
 		set_fs(oldfs);
@@ -428,7 +437,7 @@ static bool fih_read_meminfo(char *temp, int size)
 	return ret;
 }
 
-
+/*qyf end*/
 static int dram_show(struct seq_file *s, void *unused)
 {
 	char info[30];
@@ -585,6 +594,7 @@ static char fih_lcm_info[256] = "unknown";
 
 static int lcm_show(struct seq_file *s, void *unused)
 {
+        //add for ZM1 FQC lcm info by alex 20151106.
         if (!strcmp(fih_lcm_info, "ili9881h_hd720plus_dsi_vdo_dj"))
         {
                 seq_printf(s, "ili9881h 5.9' 720P\n");
@@ -869,6 +879,7 @@ static int ram_result_show(struct seq_file *s, void *unused)
 static int fih_proc_test_result_show(struct seq_file *m, void *v)
 {
         printk("fih_proc_test_result_show enter\n");
+        //sunjie seq_printf(m, "%s\n", fih_proc_test_result);
         sprintf(fih_proc_test_result, "%d\n", fih_get_ramtest_result());
         seq_printf(m, "%s\n", fih_proc_test_result);
         return 0;
@@ -1016,9 +1027,11 @@ static int hwidv_show(struct seq_file *s, void *unused)
         return 0;
 }
 
+//add audio [
 static int audio_info_show(struct seq_file *s, void *unused)
 {
 
+//cloudie modify for NE1 [
 #if 0
         unsigned short project_id = (fih_hwid >> 8) & 0x00F;
 
@@ -1032,9 +1045,11 @@ static int audio_info_show(struct seq_file *s, void *unused)
         printk("audio parameters version: %s\n",audio_parameters_version);
         seq_printf(s, "%s\n",audio_parameters_version );
         return 0;
+//cloudie modify for NE1 ]
 
 }
 
+/*add for audio parameter version show*/
 //static int
 static ssize_t audio_info_write(struct file *flip, const char __user *buf, size_t count, loff_t *f_pos)
 {
@@ -1045,6 +1060,7 @@ static ssize_t audio_info_write(struct file *flip, const char __user *buf, size_
     ssize_t ret;
     char *para = model[project_id].audio_para;
 
+    /*modify for G42 audio info show bug @20151215*/
     memset(model[project_id].audio_para, 0, 30);
     printk("audio_info_write para=%s,model[project_id].model_name=%s\n", para,model[project_id].model_name);
     //the default count is 6
@@ -1065,6 +1081,7 @@ static ssize_t audio_info_write(struct file *flip, const char __user *buf, size_
 //    return count;
     return ret;
 }
+//add audio ]
 static int uicolor_show(struct seq_file *s,void *unused)
 {
         printk("uicolor_show enter\n");
@@ -1314,7 +1331,7 @@ static int fih_awer_status_read_proc(struct seq_file *m, void *v)
         return 0;
 }
 //PDA: for lcm runin }
-/* J6000504 - roy.zy.shang
+/* 
  * Add for WCN MAC @{
  */
 static int wifi_show(struct seq_file *s, void *unused)
@@ -1641,7 +1658,7 @@ static int fih_awer_status_proc_open(struct inode *inode, struct file *file)
 }
 //PDA: for lcm runin }
 
-/* J6000504 - roy.zy.shang
+/* 
  * Add for WCN MAC @{
  */
 static int wifi_open(struct inode *inode, struct file *file)
@@ -1819,6 +1836,7 @@ static const struct file_operations lcm_info_fops = {
         .release     = single_release,
 };
 
+//add audio [
 static const struct file_operations AUDIO_para_info_fops = {
         .open        = audio_info_open,
                 .write           = audio_info_write,
@@ -1826,12 +1844,14 @@ static const struct file_operations AUDIO_para_info_fops = {
         .llseek      = seq_lseek,
         .release     = single_release,
 };
+//jennyxu add audio ]
 
+//for RUNIN
 static struct file_operations draminfo_test_result_ops = {
         .owner   = THIS_MODULE,
         .open    = draminfo_test_result_open,
         .read    = seq_read,
-        .write           = draminfo_test_result_wtite,  
+        .write           = draminfo_test_result_wtite,  /*sunjie +*/
         .llseek  = seq_lseek,
         .release = single_release
 };
@@ -1925,7 +1945,7 @@ static struct file_operations awer_status_operations = {
 };
 //PDA: for lcm runin }
 
-/* J6000504 - roy.zy.shang
+/* 
  * Add for WCN MAC @{
  */
 static const struct file_operations wifi_fops = {
@@ -2238,7 +2258,7 @@ static int __init proc_info_module_init(void)
                 printk("[dw]creat proc %s fail\n", HWMODEL_PROC);
 
         fih_dram_setup_MEM();
-        entry = proc_create(FIH_PROC_TESTRESULT_PATH, 0777, entry_C, &draminfo_test_result_ops); 
+        entry = proc_create(FIH_PROC_TESTRESULT_PATH, 0777, entry_C, &draminfo_test_result_ops); //sunjie + for runin
         if(entry == NULL)
                 printk("creat AllHWList/dramtest_result proc %s fail\n", RAMRESULT_PROC);
 
@@ -2300,7 +2320,7 @@ static int __init proc_info_module_init(void)
         pr_debug("\n\n*** [LCM] %s, succeed to create proc/%s ***\n\n", __func__, LCM0_AWER_STATUS);
         //PDA: for lcm runin }
 
-/* J6000504 - roy.zy.shang
+/*
  * Add for WCN MAC @{
  */
         entry = proc_create(WIFI_MAC, 0777, NULL, &wifi_fops);

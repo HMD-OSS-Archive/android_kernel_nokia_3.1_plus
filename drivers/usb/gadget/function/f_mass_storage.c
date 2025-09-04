@@ -226,11 +226,11 @@
 #ifdef CONFIG_MEDIATEK_SOLUTION
 #include "usb_boost.h"
 #endif
-
+/* OEM scsi command */
 #if defined CONFIG_FIH_USB && CONFIG_FIH_USB
 #include <linux/reboot.h>
 #endif
-
+/* end */
 
 /*------------------------------------------------------------------------*/
 
@@ -588,7 +588,7 @@ static int fsg_setup(struct usb_function *f,
 
 /*-------------------------------------------------------------------------*/
 
-
+/* OEM scsi command */
 #if defined CONFIG_FIH_USB && CONFIG_FIH_USB
 #include <fih_usb.h>
 static int (*fih_tool_func_ptr)(int, void*);
@@ -629,7 +629,7 @@ static int fih_tool_func(int command, void *data)
 	}
 }
 #endif
-
+/* end  */
 
 /* All the following routines run in process context */
 
@@ -1315,12 +1315,12 @@ static int do_read_toc(struct fsg_common *common, struct fsg_buffhd *bh)
 	int		msf = common->cmnd[1] & 0x02;
 	int		start_track = common->cmnd[6];
 	u8		*buf = (u8 *)bh->buf;
-
+/* OEM scsi command */
 #ifdef READ_TOC_SUPPORT_MAC_OS
 		u8		format;
 		int 	ret;
 #endif
-
+/* end  */
 
 	if ((common->cmnd[1] & ~0x02) != 0 ||	/* Mask away MSF */
 			start_track > 1) {
@@ -1328,9 +1328,9 @@ static int do_read_toc(struct fsg_common *common, struct fsg_buffhd *bh)
 		return -EINVAL;
 	}
 
-
+/* OEM scsi command */
 #ifndef READ_TOC_SUPPORT_MAC_OS
-
+/* end  */
 	memset(buf, 0, 20);
 	buf[1] = (20-2);		/* TOC data length */
 	buf[2] = 1;			/* First track number */
@@ -1343,7 +1343,7 @@ static int do_read_toc(struct fsg_common *common, struct fsg_buffhd *bh)
 	buf[14] = 0xAA;			/* Lead-out track number */
 	store_cdrom_address(&buf[16], msf, curlun->num_sectors);
 	return 20;
-
+/* OEM scsi command */
 #else
 	/*
 	* Check if CDB is old style SFF-8020i
@@ -1365,7 +1365,7 @@ static int do_read_toc(struct fsg_common *common, struct fsg_buffhd *bh)
 	}
 	return ret;
 #endif
-
+/* end  */
 }
 
 static int do_mode_sense(struct fsg_common *common, struct fsg_buffhd *bh)
@@ -1918,19 +1918,19 @@ static int check_command(struct fsg_common *common, int cmnd_size,
 		 */
 		if (common->cmnd[0] != INQUIRY &&
 		    common->cmnd[0] != REQUEST_SENSE) {
-
+/* OEM scsi command */
 #if defined CONFIG_FIH_USB && CONFIG_FIH_USB
 			if (!fih_tool_func(CHECK_COMMAND, common)) {
 				DBG(common, "unsupported LUN %u\n", common->lun);
 			    return -EINVAL;
 			}
 #else
-
+/* end */
 			DBG(common, "unsupported LUN %u\n", common->lun);
 			return -EINVAL;
-
+/* OEM scsi command */
 #endif
-
+/* end */
 		}
 	}
 
@@ -1941,18 +1941,18 @@ static int check_command(struct fsg_common *common, int cmnd_size,
 	if ((curlun && curlun->unit_attention_data != SS_NO_SENSE &&
 	    common->cmnd[0] != INQUIRY &&
 	    common->cmnd[0] != REQUEST_SENSE)
-
+/* OEM scsi command */
 #if defined CONFIG_FIH_USB && CONFIG_FIH_USB
 		&&!fih_tool_func(CHECK_COMMAND, common)
 #endif
-
+/* end */
 	    ){
 		curlun->sense_data = curlun->unit_attention_data;
 		curlun->unit_attention_data = SS_NO_SENSE;
 		return -EINVAL;
 	}
 
-
+/* OEM scsi command */
 #if defined CONFIG_FIH_USB && CONFIG_FIH_USB
 		if (!fih_tool_func(CHECK_COMMAND, common)) {
 	/* Check that only command bytes listed in the mask are non-zero */
@@ -1973,7 +1973,7 @@ static int check_command(struct fsg_common *common, int cmnd_size,
 			}
 		}
 #else
-
+/* end */
 
 	/* Check that only command bytes listed in the mask are non-zero */
 	common->cmnd[1] &= 0x1f;			/* Mask away the LUN */
@@ -1992,9 +1992,9 @@ static int check_command(struct fsg_common *common, int cmnd_size,
 		return -EINVAL;
 	}
 
-
+/* OEM scsi command */
 #endif
-
+/* end  */
 
 	return 0;
 }
@@ -2156,13 +2156,13 @@ static int do_scsi_command(struct fsg_common *common)
 		common->data_size_from_cmnd =
 			get_unaligned_be16(&common->cmnd[7]);
 		reply = check_command(common, 10, DATA_DIR_TO_HOST,
-
+/* OEM scsi command */
 #ifdef READ_TOC_SUPPORT_MAC_OS
 				      (0xf<<6) | (1<<1), 1,
 #else
 				      (7<<6) | (1<<1), 1,
 #endif
-
+/* end */
 				      "READ TOC");
 		if (reply == 0)
 			reply = do_read_toc(common, bh);
@@ -2271,13 +2271,13 @@ static int do_scsi_command(struct fsg_common *common)
 		/* Fall through */
 
 	default:
-
+/* OEM scsi command */
 #if defined CONFIG_FIH_USB && CONFIG_FIH_USB
 		if (fih_tool_func(EXE_COMMAND_CHECK, common)) {
 			reply = fih_tool_func(EXE_COMMAND, common);
 } else {
 #endif
-
+/* end */
 unknown_cmnd:
 		common->data_size_from_cmnd = 0;
 		sprintf(unknown, "Unknown x%02x", common->cmnd[0]);
@@ -2288,11 +2288,11 @@ unknown_cmnd:
 			reply = -EINVAL;
 		}
 		break;
-
+/* OEM scsi command */
 #if defined CONFIG_FIH_USB && CONFIG_FIH_USB
 	}
 #endif
-
+/* end */
 	}//switch (common->cmnd[0])
 	up_read(&common->filesem);
 
@@ -2792,7 +2792,7 @@ static int fsg_main_thread(void *common_)
 		if (send_status(common))
 			continue;
 
-
+/* OEM scsi command */
 #if defined CONFIG_FIH_USB && CONFIG_FIH_USB
 		{
 			int check_flag;
@@ -2807,7 +2807,7 @@ static int fsg_main_thread(void *common_)
 			}
 		}
 #endif
-
+/* end */
 
 		spin_lock_irq(&common->lock);
 		if (!exception_in_progress(common))

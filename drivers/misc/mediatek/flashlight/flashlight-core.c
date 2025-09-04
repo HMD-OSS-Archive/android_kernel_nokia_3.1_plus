@@ -124,7 +124,7 @@ static int fl_enable(struct flashlight_dev *fdev, int enable)
 	if (pt_is_low(pt_low_vol, pt_low_bat, pt_over_cur) == 2)
 		if (enable) {
 			enable = 1;
-			
+			/// default:0 product needs to make flashlight always working even low power mode.
             //So make it return none-low-power here.
 			pr_info("Failed to enable since pt(%d,%d,%d), pt strict(%d)\n",
 					pt_low_vol, pt_low_bat,

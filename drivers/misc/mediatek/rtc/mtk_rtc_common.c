@@ -476,7 +476,6 @@ int set_rtc_spare_vbat_value(int val)
         
         return 0;
 }
-/*End, */
 
 u16 rtc_rdwr_uart_bits(u16 *val)
 {

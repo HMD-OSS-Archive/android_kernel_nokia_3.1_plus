@@ -50,12 +50,15 @@
 #define OTG_LAST_FLAG			"otg_last_flag"				
 #define SIM_NUMBER				"simnum"
 #define FQCXMLPATH				"fqc_xml"
-#define RAMRESULT_PROC                  "dramtest_result"  
+#define RAMRESULT_PROC                  "dramtest_result"   //sunjie +
 /* PDA: for lcm runin { */
 #define LCM0_AWER_CNT                   "awer_cnt"
 #define LCM0_AWER_STATUS                "awer_status"
 /* PDA: for lcm runin } */
 
+/* J6000504 - roy.zy.shang
+ * Add for WCN MAC @{
+ */
 #define WIFI_MAC                "wifi_mac"
 #define BT_MAC                  "bt_mac"
 /* @} */

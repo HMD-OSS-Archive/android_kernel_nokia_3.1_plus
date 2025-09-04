@@ -23,13 +23,11 @@
 char mtk_ccm_name[camera_info_size] = { 0 };
 char mtk_i2c_dump[camera_info_size] = { 0 };
 
-
 char fih_s5k4h7yx_sernum[20] = { 0 };
 
 char fih_s5k5e9yx_kbuffer[camera_info_size] = { 0 };
 char fih_s5k5e9yx_lsc[camera_lsc_info_size] = { 0 };
 char fih_s5k5e9yx_wbc[1] = { 0 };
-
 
 static int pdaf_type_info_read(struct seq_file *m, void *v)
 {
@@ -414,8 +412,6 @@ static int s5k5e9yx_wbc_read(struct seq_file *m, void *v)
 	return 0;
 };
 
-
-
 static int subsys_camsensor_read(struct seq_file *m, void *v)
 {
 	seq_printf(m, "%s\n", mtk_i2c_dump);
@@ -524,8 +520,6 @@ static const struct file_operations fcamera_proc_s5k5e9yx_wbc = {
 	.read = seq_read,
 };
 
-
-
 static const struct file_operations fcamera_proc_fops_set_pdaf_type = {
 	.owner = THIS_MODULE,
 	.open = proc_SensorType_open,
@@ -542,7 +536,6 @@ static const struct file_operations fcamera_proc_fops_status_info = {
 enum IMGSENSOR_RETURN imgsensor_proc_init(void)
 {
 	memset(mtk_ccm_name, 0, camera_info_size);
-
 
   memset(fih_s5k4h7yx_sernum, 0, 20);
 
