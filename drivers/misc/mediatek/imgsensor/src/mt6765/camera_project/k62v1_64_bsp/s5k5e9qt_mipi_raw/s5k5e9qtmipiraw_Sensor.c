@@ -38,7 +38,6 @@
 
 #include "s5k5e9qtmipiraw_Sensor.h"
 
-//shawn
 #define dual_cam 1
  
 /****************************Modify following Strings for debug****************************/
