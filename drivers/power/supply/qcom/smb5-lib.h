@@ -21,6 +21,7 @@
 #include <linux/alarmtimer.h>
 #include <linux/usb/class-dual-role.h>
 #include "storm-watch.h"
+#include <linux/wakelock.h>
 
 enum print_reason {
 	PR_INTERRUPT	= BIT(0),
@@ -72,6 +73,8 @@ enum print_reason {
 #define AICL_THRESHOLD_VOTER		"AICL_THRESHOLD_VOTER"
 #define MOISTURE_VOTER			"MOISTURE_VOTER"
 #define USBOV_DBC_VOTER			"USBOV_DBC_VOTER"
+#define FCC_STEPPER_VOTER		"FCC_STEPPER_VOTER"
+#define CHG_TERMINATION_VOTER		"CHG_TERMINATION_VOTER"
 #define DR_SWAP_VOTER			"DR_SWAP_VOTER"
 
 #define BOOST_BACK_STORM_COUNT	3
@@ -108,6 +111,7 @@ enum {
 	WEAK_ADAPTER_WA			= BIT(1),
 	MOISTURE_PROTECTION_WA		= BIT(2),
 	USBIN_OV_WA			= BIT(3),
+	CHG_TERMINATION_WA		= BIT(4),
 };
 
 enum {
@@ -352,6 +356,7 @@ struct smb_charger {
 	struct work_struct	pl_update_work;
 	struct work_struct	jeita_update_work;
 	struct work_struct	moisture_protection_work;
+	struct work_struct	chg_termination_work;
 	struct delayed_work	ps_change_timeout_work;
 	struct delayed_work	clear_hdc_work;
 	struct delayed_work	icl_change_work;
@@ -365,6 +370,7 @@ struct smb_charger {
 
 	/* alarm */
 	struct alarm		moisture_protection_alarm;
+	struct alarm		chg_termination_alarm;
 
 	/* pd */
 	int			voltage_min_uv;
@@ -418,6 +424,9 @@ struct smb_charger {
 	bool			aicl_max_reached;
 	bool			moisture_present;
 	bool			moisture_protection_enabled;
+	bool			fcc_stepper_enable;
+	int			charge_full_cc;
+	int			cc_soc_ref;
 
 	/* workaround flag */
 	u32			wa_flags;
@@ -443,8 +452,14 @@ struct smb_charger {
 	int			high_temp_rechg_vbat_mv; // FIHTDC, IdaChiang, add for warm temp recharging
 	int			pre_recharge_val; // FIHTDC, IdaChiang, add for warm temp recharging
 	int			usb_thermal_mitigation; // FIHTDC, IdaChaing, add for usb temperature
+	int			od6_otg_enable_pin; // FIHTDC, IdaChaing, add for otg enable
+	int			chg_terminal_pin; // add for charging terminal function
+	int			extra_battery_current; // FIHTDC, IdaChiang, add for 5V2A DCP
+	bool			lms_prj_only;
+	bool			od6_prj_only;
 	bool			usb_thermal_function; // FIHTDC, IdaChaing, add for usb temperature
 	bool			fih_dcp_2a_enable; // FIHTDC, IdaChiang, add for 5V2A DCP
+	struct wake_lock  od6_chg_wake_lock; // FIHTDC, IdaChiang add for OD6-17
 	
 	/* flash */
 	u32			flash_derating_soc;

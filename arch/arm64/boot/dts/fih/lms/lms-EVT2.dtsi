@@ -1,0 +1,14 @@
+/* LMS EVT SDM429/439 */
+
+/* inherit EVT Settings */
+#include "lms-EVT.dtsi"
+
+/* Diff */
+
+/* Display */
+#include "display/bridge-tc358762-evt11.dtsi"
+
+/* ANT+ */
+#include "ant/ant_nRF24AP2.dtsi"
+/* Charging */
+#include "power/sdm439-pmi632-fih-EVT2.dtsi"

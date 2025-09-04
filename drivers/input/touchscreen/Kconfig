@@ -1317,4 +1317,5 @@ source "drivers/input/touchscreen/hxchipset_incell/Kconfig"
 source "drivers/input/touchscreen/gt9xx/Kconfig"
 source "drivers/input/touchscreen/nt36xxx/Kconfig"
 source "drivers/input/touchscreen/shtps/Kconfig"
+source "drivers/input/touchscreen/focaltech_touch_7311/Kconfig"
 endif

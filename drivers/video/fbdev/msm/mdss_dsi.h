@@ -458,6 +458,8 @@ struct mdss_dsi_ctrl_pdata {
 	int rst_gpio;
 	int lcm_iovcc_gpio;	//HL+_20180529tp_reset_gpio
 	int tp_reset_gpio;	//HL+_20180529tp_reset_gpio
+	int brg_1p2_en_gpio;	//SW4-HL-Display-TC358762_HX8352-BringUp-00+_20181219
+	int brg_rst_gpio;		//SW4-HL-Display-TC358762_HX8352-BringUp-00+_20181219
 	int disp_en_gpio;
 	int bklt_en_gpio;
 	int vdd_ext_gpio;

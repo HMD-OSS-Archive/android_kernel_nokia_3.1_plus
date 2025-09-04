@@ -256,6 +256,8 @@ struct msm_hs_port {
 	atomic_t client_count;
 	bool obs; /* out of band sleep flag */
 	atomic_t client_req_state;
+   /*QC patch for suspend*/
+    int sys_suspend_noirq_cnt;
 	void *ipc_msm_hs_log_ctxt;
 	void *ipc_msm_hs_pwr_ctxt;
 	int ipc_debug_mask;
@@ -278,6 +280,10 @@ static const struct of_device_id msm_hs_match_table[] = {
 #define BUS_RESET 0
 #define RX_FLUSH_COMPLETE_TIMEOUT 300 /* In jiffies */
 #define BLSP_UART_CLK_FMAX 63160000
+
+/*20190129@AlanYA added for sync cyw20706 begin*/
+#define CYW20706_BPS 3000000
+/*20190129@AlanYA added for sync cyw20706 end*/
 
 static struct dentry *debug_base;
 static struct platform_driver msm_serial_hs_platform_driver;
@@ -412,12 +418,118 @@ static void msm_hs_resource_unvote(struct msm_hs_port *msm_uport)
 	pm_runtime_put_autosuspend(uport->dev);
 }
 
+/*Alanya added for enter sleep mode begin*/
+//1:Power enable, 0:Power disable
+static void enter_sleep_mode(struct platform_device *pdev ,int enable)
+{
+	//int ret = 0;
+	const __be32 *cywbt_support;
+	int cywbt_rst_n_gpio_p = 0;
+	//printk("cyw20706 enter_sleep_mode=%d", enable);
+	cywbt_support= of_get_property(pdev->dev.of_node, "lms,cywbt-support", NULL);
+			if(cywbt_support)
+			{
+				//printk("cywbt is support=%d",be32_to_cpup(cywbt_support));
+				//printk("cywbt is support , msm_hs_probe enable cywbt-avdd-en-gpio and cywbt-rst-n-gpio");
+				cywbt_rst_n_gpio_p = of_get_named_gpio(pdev->dev.of_node, "lms,cywbt-rst-n-gpio", 0);
+			
+
+				if(cywbt_rst_n_gpio_p< 0)  {
+					dev_err(&pdev->dev, "property %s not detected in node %s","lms,cywbt-rst-n-gpio", pdev->dev.of_node->full_name);
+				} 
+				else {
+					//printk("detected and lms,cywbt-rst-n-gpio(%d)  in node %s",cywbt_rst_n_gpio_p, pdev->dev.of_node->full_name);
+					if (gpio_is_valid(cywbt_rst_n_gpio_p)){
+						//printk("try control lms,cywbt-rst-n-gpio(%d)", cywbt_rst_n_gpio_p);
+						if(enable==0&&gpio_get_value(cywbt_rst_n_gpio_p)==1)//low
+							{
+							//printk("gpio_set_value 0");
+							msleep(100);
+							gpio_set_value(cywbt_rst_n_gpio_p,0);
+							msleep(100);
+							printk("pull down RST pin to =%d",gpio_get_value(cywbt_rst_n_gpio_p));
+							}
+						else if(enable==1&&gpio_get_value(cywbt_rst_n_gpio_p)==0)//high
+							{
+							//printk("gpio_set_value 1");
+							msleep(100);
+							gpio_set_value(cywbt_rst_n_gpio_p,1);
+							msleep(100);
+							printk("pull up RST pin to=%d",gpio_get_value(cywbt_rst_n_gpio_p));
+							}								
+				    }else {
+			            dev_err(&pdev->dev, "%s: LMS -- cywbt-avdd-en-gpio or cywbt-rst-n-gpio is not valid\n", __func__);
+			           }
+			    }
+			}
+			//return ret;
+	//////yuan added end
+
+}
+#if 0
+/*Alanya added for enter sleep mode end*/
+/*Alanya added device wakeup pin begin*/
+//0:low power sleep mode enable, 1:low power sleep mode disable
+static void set_device_wake(struct platform_device *pdev ,int enable)
+{
+	//int ret = 0;
+	const __be32 *cywbt_support;
+	int device_wake_gpio = 0;
+	printk("cyw20706 enter set_device_wake=%d", enable);
+	cywbt_support= of_get_property(pdev->dev.of_node, "lms,cywbt-support", NULL);
+			if(cywbt_support)
+			{
+				//printk("cywbt is support,set_device_wako");
+				device_wake_gpio = of_get_named_gpio(pdev->dev.of_node, "lms,cywbt-device-wake-gpio", 0);
+			
+
+				if(device_wake_gpio< 0)  {
+					dev_err(&pdev->dev, "property %s not detected in node %s","lms,cywbt-device-wake-gpio", pdev->dev.of_node->full_name);
+				} 
+				else {
+					//printk("detected and lms,cywbt-device-wake-gpio(%d)  in node %s",device_wake_gpio, pdev->dev.of_node->full_name);
+					if (gpio_is_valid(device_wake_gpio)){
+						//printk("try control lms,device_wake_gpio(%d)", device_wake_gpio);
+						if(enable==0&&gpio_get_value(device_wake_gpio)==1)//low
+							{
+							//printk("gpio_set_device_wake_gpio 0");
+							msleep(100);
+							gpio_set_value(device_wake_gpio,0);
+							msleep(100);
+							printk("device_wake value=%d",gpio_get_value(device_wake_gpio));
+							}
+						else if(enable==1&&gpio_get_value(device_wake_gpio)==0)//high
+							{
+							//printk("gpio_set_device_wake_gpio 1");
+							msleep(100);
+							gpio_set_value(device_wake_gpio,1);
+							msleep(100);
+							printk("device_wake value=%d",gpio_get_value(device_wake_gpio));
+							}								
+				    }else {
+			            dev_err(&pdev->dev, "%s: LMS -- device_wake_gpio is not valid\n", __func__);
+			           }
+			    }
+			}
+			//return ret;
+	//////yuan added end
+
+}
+/*Alanya added device wakeup pin end*/
+#endif
  /* Vote for resources before accessing them */
 static void msm_hs_resource_vote(struct msm_hs_port *msm_uport)
 {
 	int ret;
 	struct uart_port *uport = &(msm_uport->uport);
-
+	//added for sleep
+    /*Alanya added for enter sleep mode begin*/
+    #if 1
+	struct platform_device *pdev = to_platform_device(uport->dev);
+    //printk("CYW20706 Power Enable : TX cmd execute");
+	enter_sleep_mode(pdev,1);
+    #endif
+	/*Alanya added for enter sleep mode end*/
 	ret = pm_runtime_get_sync(uport->dev);
 	if (ret < 0 || msm_uport->pm_state != MSM_HS_PM_ACTIVE) {
 		MSM_HS_WARN("%s:%s runtime callback not invoked ret:%d st:%d",
@@ -601,6 +713,7 @@ static void hex_dump_ipc(struct msm_hs_port *msm_uport, void *ipc_ctx,
 	 * don't include the ASCII text at the end of the buffer.
 	 */
 	hex_dump_to_buffer(string, len, 32, 1, buf, sizeof(buf), false);
+    //printk("yuan check hex_dump_ipc buf=%s, size=%d",buf,size);
 	ipc_log_string(ipc_ctx, "%s[0x%.10x:%d] : %s", prefix,
 					(unsigned int)addr, size, buf);
 }
@@ -1112,7 +1225,8 @@ static void msm_hs_set_termios(struct uart_port *uport,
 	unsigned long data;
 	unsigned int c_cflag = termios->c_cflag;
 	struct msm_hs_port *msm_uport = UARTDM_TO_MSM(uport);
-
+	//yuan added for enable disalbe cyw20706 through device wakeup pin
+    struct platform_device *pdev = to_platform_device(uport->dev);
 	/**
 	 * set_termios can be invoked from the framework when
 	 * the clocks are off and the client has not had a chance
@@ -1148,11 +1262,39 @@ static void msm_hs_set_termios(struct uart_port *uport,
 
 	/* 300 is the minimum baud support by the driver  */
 	bps = uart_get_baud_rate(uport, termios, oldtermios, 200, 4000000);
-
+	printk("ttyHS0 uart_get_baud_rate bps=%d",bps);
 	/* Temporary remapping  200 BAUD to 3.2 mbps */
 	if (bps == 200)
 		bps = 3200000;
+	/*20190129@AlanYA added for sync cyw20706 begin*/	
+	if(bps == 9600)
+		{
+		bps = CYW20706_BPS;	
+		printk("ttyHS0 bps chang from 9600 to =%d",CYW20706_BPS);
+		}
+/*Alanya added for enable disalbe cyw20706 through device wakeup pin begin*/
+	if(bps==300)//enable
+		{	
+			//int retry=0;
+			bps = CYW20706_BPS;	
+			//printk("ttyHS0 bps changes from 300 to =%d",CYW20706_BPS);
+			//set_device_wake(pdev, 0);
+            printk("CYW20706 Power Enable");
+            enter_sleep_mode(pdev, 1);
+	}
 
+	if(bps==600)//disable 
+		{	
+			//set_device_wake(pdev, 0);//need to be low first
+			bps = CYW20706_BPS;	
+			//printk("BBB ttyHS0 bps changes from 600 to =%d",CYW20706_BPS);
+			//set_device_wake(pdev, 1);
+            printk("CYW20706 Power Disable");
+            enter_sleep_mode(pdev, 0);
+			
+	}
+/*Alanya added for enable disalbe cyw20706 through device wakeup pin end*/
+	/*20190129@AlanYA added for sync cyw20706 end*/
 	uport->uartclk = clk_get_rate(msm_uport->clk);
 	if (!uport->uartclk)
 		msm_hs_set_std_bps_locked(uport, bps);
@@ -1895,6 +2037,40 @@ static void msm_serial_hs_tx_work(struct kthread_work *work)
 	struct circ_buf *tx_buf = &uport->state->xmit;
 	struct msm_hs_tx *tx = &msm_uport->tx;
 
+/*Alanya added power on off function begin*/
+#if 0
+    struct platform_device *pdev = to_platform_device(uport->dev);
+    int tx_count;
+    char *tx_string;
+    char buf[(BUF_DUMP_SIZE * 3) + 2];
+	int len = 0;
+    char *s_enable="10 00";//enable
+    char *s_disable="10 01";//disable
+    tx_count = uart_circ_chars_pending(tx_buf);
+	len = min(tx_count, BUF_DUMP_SIZE);
+    tx_string=&tx_buf->buf[tx_buf->tail];
+	hex_dump_to_buffer(tx_string, len, 32, 1, buf, sizeof(buf), false);
+	printk("CYW20706 TX CMD buf=%s, size=%d",buf,tx_count);
+    if(buf!=NULL)
+    {
+        if(strncmp(buf,s_enable,5)==0)
+        {
+            printk("CYW20706 Power Enable: executed by CYW_HAL => 10 00)");
+            enter_sleep_mode(pdev,1);
+            return;
+        }
+        else if(strncmp(buf,s_disable,5)==0)
+        {
+            printk("CYW20706 Power Disable: executed by CYW_HAL => 10 01");
+            enter_sleep_mode(pdev,0);
+            return;
+        }
+        else
+            printk("CYW20706 normal tx cmd execute");
+    }
+
+#endif
+/*Alanya added power on off function end*/
 	/*
 	 * Do the work buffer related work in BAM
 	 * mode that is equivalent to legacy mode
@@ -3206,7 +3382,10 @@ static void msm_hs_pm_suspend(struct device *dev)
 	struct msm_hs_port *msm_uport = get_matching_hs_port(pdev);
 	int ret;
 	int client_count = 0;
-
+	/*Alanya added for enter sleep mode begin*/
+    printk("CYW20706 Power Disable: msm_hs_pm_suspend");
+	enter_sleep_mode(pdev,0);
+	/*Alanya added for enter sleep mode end*/
 	if (!msm_uport)
 		goto err_suspend;
 	mutex_lock(&msm_uport->mtx);
@@ -3278,6 +3457,8 @@ static int msm_hs_pm_resume(struct device *dev)
 	LOG_USR_MSG(msm_uport->ipc_msm_hs_pwr_ctxt,
 		"%s:PM State:Active client_count %d\n", __func__, client_count);
 exit_pm_resume:
+    /*QC patch for suspend*/
+    msm_uport->sys_suspend_noirq_cnt = 0;
 	mutex_unlock(&msm_uport->mtx);
 	return ret;
 }
@@ -3287,7 +3468,8 @@ static int msm_hs_pm_sys_suspend_noirq(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct msm_hs_port *msm_uport = get_matching_hs_port(pdev);
-	enum msm_hs_pm_state prev_pwr_state;
+	/*QC patch for suspend*/
+    //enum msm_hs_pm_state prev_pwr_state;
 	int clk_cnt, client_count, ret = 0;
 
 	if (IS_ERR_OR_NULL(msm_uport))
@@ -3302,20 +3484,60 @@ static int msm_hs_pm_sys_suspend_noirq(struct device *dev)
 	clk_cnt = atomic_read(&msm_uport->resource_count);
 	client_count = atomic_read(&msm_uport->client_count);
 	if (msm_uport->pm_state == MSM_HS_PM_ACTIVE) {
+/*QC patch for suspend begin*/
+        /*
 		MSM_HS_WARN("%s:Fail Suspend.clk_cnt:%d,clnt_count:%d\n",
 				 __func__, clk_cnt, client_count);
 		ret = -EBUSY;
 		goto exit_suspend_noirq;
-	}
 
+        */
+        if (clk_cnt == 0 && client_count == 0)
+                msm_uport->sys_suspend_noirq_cnt++;
+        /*Serve force suspend post autosuspend timer expires
+         */
+        if (msm_uport->sys_suspend_noirq_cnt >= 2) {
+                msm_uport->pm_state = MSM_HS_PM_SYS_SUSPENDED;
+                msm_uport->sys_suspend_noirq_cnt = 0;
+                mutex_unlock(&msm_uport->mtx);
+
+                msm_hs_pm_suspend(dev);
+                /*
+                 * Synchronize RT-pm and system-pm, RT-PM thinks that
+                 * we are active. The three calls below let the RT-PM
+                 * know that we are suspended already without calling
+                 * suspend callback
+                 */
+                pm_runtime_disable(dev);
+                pm_runtime_set_suspended(dev);
+                pm_runtime_enable(dev);
+
+                /*To Balance out exit time Mutex unlock */
+                mutex_lock(&msm_uport->mtx);
+        } else {
+                ret = -EBUSY;
+        }
+	}
+/*
 	prev_pwr_state = msm_uport->pm_state;
 	msm_uport->pm_state = MSM_HS_PM_SYS_SUSPENDED;
 	LOG_USR_MSG(msm_uport->ipc_msm_hs_pwr_ctxt,
 		"%s:PM State:Sys-Suspended client_count %d\n", __func__,
 								client_count);
 exit_suspend_noirq:
+*/
+/*QC patch for suspend end*/
+/*QC patch for suspend begin*/
 	mutex_unlock(&msm_uport->mtx);
+    if (ret)
+           MSM_HS_WARN("%s:Fail Suspend.clk_cnt:%d,clnt_count:%d\n",
+                   __func__, clk_cnt, client_count);
+    else
+           LOG_USR_MSG(msm_uport->ipc_msm_hs_pwr_ctxt,
+                   "%s:PM State:Sys-Suspended client_count %d\n",
+                   __func__, client_count);
 	return ret;
+/*QC patch for suspend end*/
 };
 
 static int msm_hs_pm_sys_resume_noirq(struct device *dev)
@@ -3348,7 +3570,10 @@ static void  msm_serial_hs_rt_init(struct uart_port *uport)
 
 	MSM_HS_INFO("%s(): Enabling runtime pm", __func__);
 	pm_runtime_set_suspended(uport->dev);
-	pm_runtime_set_autosuspend_delay(uport->dev, 100);
+	/*20190129@AlanYA added for non suspend begin*/	
+	//pm_runtime_set_autosuspend_delay(uport->dev, 100);	
+	pm_runtime_set_autosuspend_delay(uport->dev, -1); 	
+	/*20190129@AlanYA added for non suspend end*/
 	pm_runtime_use_autosuspend(uport->dev);
 	mutex_lock(&msm_uport->mtx);
 	msm_uport->pm_state = MSM_HS_PM_SUSPENDED;
@@ -3382,6 +3607,15 @@ static int msm_hs_probe(struct platform_device *pdev)
 	struct resource *bam_resource;
 	int core_irqres, bam_irqres, wakeup_irqres;
 	struct msm_serial_hs_platform_data *pdata = pdev->dev.platform_data;
+    /*20190213 alanya added for power and reset begin*/
+	const __be32 *cywbt_support;
+	int cywbt_avdd_en_gpio_p = 0;
+	int cywbt_rst_n_gpio_p = 0;
+////////////////
+	bool icyp_flash_rst_enable =0;
+	int cywbt_flash_reset_gpio = 0;
+///////////////////////////
+    /*20190213 alanya added for power and reset end*/
 	char name[30];
 
 	if (pdev->dev.of_node) {
@@ -3600,8 +3834,76 @@ static int msm_hs_probe(struct platform_device *pdev)
 	ret = uartdm_init_port(uport);
 	if (unlikely(ret))
 		goto err_clock;
+    
+/*20190213 alanya added for vdd_power and reset begin*/
+    	cywbt_support= of_get_property(pdev->dev.of_node, "lms,cywbt-support", NULL);
+	if(cywbt_support)
+	{
+		//printk("cywbt is support=%d",be32_to_cpup(cywbt_support));
+		printk("cywbt is support , msm_hs_probe enable cywbt-avdd-en-gpio and cywbt-rst-n-gpio");
+		cywbt_avdd_en_gpio_p = of_get_named_gpio(pdev->dev.of_node, "lms,cywbt-avdd-en-gpio", 0);
+		cywbt_rst_n_gpio_p = of_get_named_gpio(pdev->dev.of_node, "lms,cywbt-rst-n-gpio", 0);
+/////////////////////////////
+		icyp_flash_rst_enable = of_property_read_bool(pdev->dev.of_node, "lms,cywbt-support-flash-rst");
+		if(icyp_flash_rst_enable)
+		{
+			cywbt_flash_reset_gpio = of_get_named_gpio(pdev->dev.of_node, "lms,cywbt-flash-reset-gpio", 0);
+			if (gpio_is_valid(cywbt_flash_reset_gpio))
+			{
+				ret = gpio_request(cywbt_flash_reset_gpio,	"cyp_flash_rst");
+				if (ret)
+					pr_err("request cywbt_flash_reset_gpio, ret=%d\n", ret);
+				else
+				{
+					gpio_direction_output(cywbt_flash_reset_gpio, 1);
+				}
+			}
+		}
+//////////////////////////////		
+		if(cywbt_avdd_en_gpio_p< 0){
+			dev_err(&pdev->dev, "property %s not detected in node %s","lms,cywbt-avdd-en-gpio", pdev->dev.of_node->full_name);
+		} 
+		else if(cywbt_rst_n_gpio_p< 0)  {
+			dev_err(&pdev->dev, "property %s not detected in node %s","lms,cywbt-rst-n-gpio", pdev->dev.of_node->full_name);
+		} 
+		else {
+			printk("detected lms,cywbt-avdd-en-gpio(%d) and lms,cywbt-rst-n-gpio(%d)  in node %s",cywbt_avdd_en_gpio_p, cywbt_rst_n_gpio_p, pdev->dev.of_node->full_name);
+			if (gpio_is_valid(cywbt_avdd_en_gpio_p) && gpio_is_valid(cywbt_rst_n_gpio_p)){
+				printk("enable lms,cywbt-avdd-en-gpio(%d) and lms,cywbt-rst-n-gpio(%d)", cywbt_avdd_en_gpio_p, cywbt_rst_n_gpio_p);
 
-
+				ret=gpio_request(cywbt_avdd_en_gpio_p,  "cywbt_avdd_en_gpio_p");
+				if (unlikely(ret)) {
+					MSM_HS_ERR("gpio request failed for:%d\n",cywbt_avdd_en_gpio_p);
+					//goto cywbt_avdd_unconfig;
+					gpio_free(cywbt_avdd_en_gpio_p);
+				}
+				else
+				{
+				 ret=gpio_request(cywbt_rst_n_gpio_p,  "cywbt_rst_n_gpio_p");
+					if (unlikely(ret)) {
+						MSM_HS_ERR("gpio request failed for:%d\n",cywbt_rst_n_gpio_p);
+						//goto cywbt_rst_unconfig;
+						gpio_free(cywbt_rst_n_gpio_p);
+						gpio_free(cywbt_avdd_en_gpio_p);
+					}
+					else
+					{
+						printk("enable lms,cywbt-avdd-en-gpio(%d)", cywbt_avdd_en_gpio_p);
+		              		gpio_direction_output(cywbt_avdd_en_gpio_p, 1);
+				 		msleep(100);
+				             printk("enable lms,cywbt-rst-n-gpio(%d)", cywbt_rst_n_gpio_p);
+				             gpio_direction_output(cywbt_rst_n_gpio_p, 1);
+				      }
+				}				
+		    }else {
+	            dev_err(&pdev->dev, "%s: LMS -- cywbt-avdd-en-gpio or cywbt-rst-n-gpio is not valid\n", __func__);
+	           }
+	    }
+	}
+	else{
+	printk("cywbt is not support");
+	}
+/*20190213 alanya added for vdd_power and reset end*/
 	ret = sysfs_create_file(&pdev->dev.kobj, &dev_attr_clock.attr);
 	if (unlikely(ret)) {
 		MSM_HS_ERR("Probe Failed as sysfs failed\n");
@@ -3771,11 +4073,13 @@ static void msm_hs_shutdown(struct uart_port *uport)
 	if (atomic_read(&msm_uport->client_count)) {
 		MSM_HS_WARN("%s: Client vote on, forcing to 0\n", __func__);
 		atomic_set(&msm_uport->client_count, 0);
-		LOG_USR_MSG(msm_uport->ipc_msm_hs_pwr_ctxt,
-			"%s: Client_Count 0\n", __func__);
+		//LOG_USR_MSG(msm_uport->ipc_msm_hs_pwr_ctxt,
+		//	"%s: Client_Count 0\n", __func__);
 	}
 	msm_hs_unconfig_uart_gpios(uport);
-	MSM_HS_INFO("%s:UART port closed successfully\n", __func__);
+	//MSM_HS_INFO("%s:UART port closed successfully\n", __func__);
+    LOG_USR_MSG(msm_uport->ipc_msm_hs_pwr_ctxt,
+               "%s:UART port closed, Client_Count 0\n", __func__);
 }
 
 static void __exit msm_serial_hs_exit(void)

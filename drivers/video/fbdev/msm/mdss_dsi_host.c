@@ -1215,7 +1215,8 @@ static int mdss_dsi_read_status(struct mdss_dsi_ctrl_pdata *ctrl)
 	return rc;
 }
 
-
+extern int fih_lms_lcm_read_status(void);	//SW4-HL-Display-ESD-Recover-00+_20190315
+extern void mdss_dsi_panel_esd_recover(struct mdss_dsi_ctrl_pdata *ctrl_pdata);	//SW4-HL-Display-ESD-Recover-00+_20190315
 /**
  * mdss_dsi_reg_status_check() - Check dsi panel status through reg read
  * @ctrl_pdata: pointer to the dsi controller structure
@@ -1237,6 +1238,33 @@ int mdss_dsi_reg_status_check(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 	}
 
 	pr_debug("%s: Checking Register status\n", __func__);
+
+	//SW4-HL-Display-ESD-Recover-00+{_20190315
+	switch (ctrl_pdata->panel_data.panel_info.panel_id)
+	{
+		case FIH_HX8352_TM_240x400_VIDEO_PANEL:
+			{
+				pr_debug("[HL]%s, %d: FIH_HX8352_TM_240x400_VIDEO_PANEL\n", __func__, __LINE__);
+
+				mdss_dsi_panel_esd_recover(ctrl_pdata);
+
+				if (fih_lms_lcm_read_status())
+				{
+					return 1;
+				}
+				else
+				{
+					return 0;
+				}
+			}
+			break;
+		default:
+			{
+				pr_debug("[HL]%s, %d: default\n", __func__, __LINE__);
+			}
+			break;
+	}
+	//SW4-HL-Display-ESD-Recover-00+}_20190315
 
 	mdss_dsi_clk_ctrl(ctrl_pdata, ctrl_pdata->dsi_clk_handle,
 			  MDSS_DSI_ALL_CLKS, MDSS_DSI_CLK_ON);
@@ -1774,7 +1802,7 @@ static int mdss_dsi_cmds2buf_tx(struct mdss_dsi_ctrl_pdata *ctrl,
 				len = mdss_dsi_cmd_dma_tx(ctrl, tp);
 
 			pr_debug("\n\n******************** [HL] %s, dchdr->wait = 0x%x, cm->payload[0] = 0x%x, cm->payload[1] = 0x%x, cm->payload[2] = 0x%x  **********************\n\n", __func__, dchdr->wait, cm->payload[0], cm->payload[1], cm->payload[2]);
-			
+
 			if (IS_ERR_VALUE((unsigned long)len)) {
 				mdss_dsi_disable_irq(ctrl, DSI_CMD_TERM);
 				pr_err("%s: failed to call cmd_dma_tx for cmd = 0x%x\n",

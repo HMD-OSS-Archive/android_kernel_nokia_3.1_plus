@@ -478,3 +478,6 @@ config MODULE_SIG_FIH_KEY_PATH
 	default "${KBUILD_SRC}/certs/fih" if MODULE_SIG_KEY_IN_NORMAL
 	default "../../../mach/SDM429/kernel/linux/certs/fih" if MODULE_SIG_KEY_IN_FTM
 
+config FIH_DSAR
+	bool "kk and rfcable driver"
+	default n

@@ -18,8 +18,9 @@
 #define FIH_PROC_TP_UPGRADE		"AllHWList/tp_upgrade"
 #define FIH_PROC_TP_FILE_FW_FW	"AllHWList/tp_fwim_ver"
 #define FIH_PROC_TP_VENDOR		"AllHWList/tp_vendor"
-#if 0
+
 #define FIH_PROC_TP_SMART_COVER  "AllHWList/tp_smart_cover"
+#if 0
 #define FIH_PROC_TP_DOWN_GRADE  "AllHWList/tp_fw_back"
 #define FIH_PROC_TP_GESTURE  "AllHWList/tp_gesture"
 #define FIH_PROC_TP_GESTURE_AVAILABLE  "AllHWList/tp_gesture_available"
@@ -40,7 +41,7 @@ extern void touch_fwback_write(void);
 extern int touch_fwback_read(void);
 extern void touch_tpfwimver_read(char *fw_ver);
 extern int touch_scover_read(void);
-extern int touch_scover_write(int);
+extern void touch_scover_write(int);
 extern void touch_fwupgrade(int);
 extern void touch_fwupgrade_read(char *);
 extern void touch_vendor_read(char *);
@@ -324,7 +325,6 @@ static struct file_operations touch_vendor_proc_file_ops = {
 };
 //touch_vendor end
 
-#if 0
 //touch_scover start
 static int fih_touch_scover_read_show(struct seq_file *m, void *v)
 {
@@ -344,11 +344,23 @@ static int fih_touch_scover_proc_open(struct inode *inode, struct file *file)
 static ssize_t fih_touch_scover_proc_write(struct file *file, const char __user *buffer,
 	size_t count, loff_t *ppos)
 {
-	int input;
-	if (sscanf(buffer, "%u", &input) != 1)
+	char *buf;
+	unsigned int input = 0;
+
+	buf = kzalloc(count, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	if (copy_from_user(buf, buffer, count))
+		return -EFAULT;
+	input = simple_strtoul(buf, NULL, 10);
+
+	if((input != 0) && (input !=1))
 	{
-		 return -EINVAL;
+		pr_err("F@Touch %s, wrong value, input = %d, *buf = %x\n", __func__, input, *buf);
+		return -EINVAL;
 	}
+
 	if(touch_cb.touch_scover_write != NULL)
 	{
 		pr_info("F@Touch Write Touch Scover Flag To %d\n",input);
@@ -366,7 +378,7 @@ static struct file_operations touch_scover_proc_file_ops = {
 	.release = single_release
 };
 //touch_scover end
-
+#if 0
 //touch_fwback start
 static int fih_touch_fwback_read_show(struct seq_file *m, void *v)
 {
@@ -800,7 +812,6 @@ static int __init fih_touch_init(void)
 			return (1);
 		}
 
-		#if 0
 		//F@Touch Set Smart cover
 		if (proc_create(FIH_PROC_TP_SMART_COVER, 0, NULL, &touch_scover_proc_file_ops) == NULL)
 		{
@@ -808,6 +819,7 @@ static int __init fih_touch_init(void)
 			return (1);
 		}
 
+		#if 0
 		if (proc_create(FIH_PROC_TP_DOWN_GRADE, 0, NULL, &touch_fwback_proc_file_ops) == NULL) 
 		{
 			pr_err("fail to create proc/%s\n", FIH_PROC_TP_DOWN_GRADE);

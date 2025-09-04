@@ -1842,14 +1842,10 @@ int fih_nvt_selftest_open(void)
 
         mutex_unlock(&ts->lock);
 
-        #if 0
 	TestResult_All= TestResult_Short||TestResult_Short_Diff|| TestResult_Short_Base 
         ||TestResult_Open ||TestResult_FW_Rawdata ||TestResult_FWMutual ||TestResult_FW_CC 
         ||TestResult_FW_CC_I ||TestResult_FW_CC_Q ||	TestResult_Noise||TestResult_FW_DiffMax
         ||TestResult_FW_DiffMin;
-        #else
-        TestResult_All = 0;
-        #endif
 
 	NVT_LOG("selftest TestResult = %d \n",TestResult_All);
 

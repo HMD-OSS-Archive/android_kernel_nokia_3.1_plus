@@ -82,6 +82,9 @@ static int mdss_dsi_panel_cabc_set_BeforeInit(struct mdss_dsi_ctrl_pdata *ctrl_p
 
 static int DispOff = 0;	//SW4-HL-Display-NT35597-Fix_JGR-5432-AvoidCabcOffCmdIsSentDuring0x28And0x11Cmd-00+_20160601
 
+extern u32 tc358762_i2c_short_write_reg(struct i2c_client *client, u16 reg, u16 val);	//SW4-HL-Display-TC358762_HX8352-BringUp-01+_20190117
+extern struct i2c_client *toshiba_bridge_client;	//SW4-HL-Display-TC358762_HX8352-BringUp-01+_20190117
+
 void mdss_dsi_panel_pwm_cfg(struct mdss_dsi_ctrl_pdata *ctrl)
 {
 	if (ctrl->pwm_pmi)
@@ -524,7 +527,7 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 				gpio_set_value((ctrl_pdata->rst_gpio),
 					pdata->panel_info.rst_seq[i]);
 				//SHP OD6 Panel bringup, 20181107
-				if(pdata->panel_info.panel_id == FIH_SHARP_FT8607_720P_VIDEO_PANEL && i == (pdata->panel_info.rst_seq_len -1))
+				if(pdata->panel_info.panel_id == FIH_FT8607_SHARP_720P_VIDEO_PANEL && i == (pdata->panel_info.rst_seq_len -1))
 				{
 					pr_debug("\n\n******************** [HL] %s, i = %d *****PULL HIGH tp reset***********\n\n", __func__, i);
 					gpio_set_value((ctrl_pdata->tp_reset_gpio), 1);
@@ -1375,6 +1378,32 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 		pr_debug("[HL]%s, %d: mdss_dsi_panel_cmds_send(ctrl, &ctrl->off_cmds, CMD_REQ_COMMIT) <-- END\n", __func__, __LINE__);
 	}
 
+	//SW4-HL-Display-TC358762_HX8352-BringUp-01+{_20190117
+	switch (ctrl->panel_data.panel_info.panel_id)
+	{
+		case FIH_HX8352_TM_240x400_VIDEO_PANEL:
+			#if 0
+			//HX8352 Enter Sleep Mode Before Executing Power Off Sequence. Can Avoid Screen Image Abnormal when booting into OS at the first time
+			pr_debug("[HL]%s, %d: START of HX8352 Sleep In\n", __func__, __LINE__);
+			tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0xD51F);
+			mdelay(100);
+			tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0019);
+			mdelay(100);
+			pr_debug("[HL]%s, %d: [LCM ENTER SLEEP IN MODE]\n", __func__, __LINE__);
+			#else
+			tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x3828);
+			mdelay(50);
+			tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x2828);
+			mdelay(50);
+			tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x2028);
+			pr_debug("[HL]%s, %d: [LCM CMD DISP OFF]\n", __func__, __LINE__);
+			#endif
+			break;
+		default:
+			break;
+	}
+	//SW4-HL-Display-TC358762_HX8352-BringUp-01+}_20190117
+
 	mdss_dsi_panel_off_hdmi(ctrl, pinfo);
 
 end:
@@ -1641,6 +1670,13 @@ end:	//SW4-HL-Display-NT35597-Fix_JGR-5432-AvoidCabcOffCmdIsSentDuring0x28And0x1
 //SW4-HL-Display-ImplementCECTCABC-00+}_20160126
 
 //SW4-HL-Display-DynamicReadWriteRegister-00+{_20160729
+//SW4-HL-Display-ESD-Recover-00+{_20190315
+extern u32 tc358762_i2c_write_reg(struct i2c_client *client, u16 reg, u32 val);
+extern u32 tc358762_i2c_one_byte_write_reg(struct i2c_client *client, u16 reg, u8 val);
+extern u32 tc358762_i2c_one_byte_read_reg(struct i2c_client *client, u16 reg);
+extern u32 tc358762_i2c_read_reg(struct i2c_client *client, u16 reg);
+//SW4-HL-Display-ESD-Recover-00+}_20190315
+
 static int tot_reg_val_len = 0;
 static char res_reg_val[2];
 void mdss_dsi_panel_read_reg_get(char *reg_val)
@@ -1666,12 +1702,105 @@ void mdss_dsi_panel_read_reg_set(struct mdss_dsi_ctrl_pdata *ctrl_pdata, unsigne
 {
 	char *rx_buf;
 	int i = 0;
+	u32 tmp;
 
 	pr_err("\n\n*** [HL] %s, reg = 0x%x, reg_len = %d ***\n\n", __func__, reg, reg_len);
 
 	res_reg_val[0] = 0;
 	res_reg_val[1] = 0;
 	pr_err("%s, Clear the array which keeps the return value of lcm driver ic to 0x00!\n", __func__);
+
+	//SW4-HL-Display-ESD-Recover-00+{_20190315
+	if (strstr(saved_command_line, "androidboot.device=LMS") != NULL)
+	{
+		if (reg == 0x04A0)
+		{
+			tmp = tc358762_i2c_read_reg(toshiba_bridge_client, 0x04A0);
+			pr_err("[LCM][BRIDGE IC-tc358762]%s: tmp = 0x%04x\n", __func__, tmp);
+			res_reg_val[0] = tmp >> 8;
+			res_reg_val[1] = tmp & 0xFF;
+			tot_reg_val_len = 2;
+			pr_err("[LCM][BRIDGE IC-tc358762]%s: Chip ID = 0x%02x,0x%02x\n", __func__, res_reg_val[0], res_reg_val[1]);
+		}
+		else
+		{
+			#if 1
+
+			pr_err("[HL]%s, %d\n", __func__, __LINE__);
+
+			tc358762_i2c_write_reg(toshiba_bridge_client, 0x0440, 0x00000110);
+			tc358762_i2c_write_reg(toshiba_bridge_client, 0x0410, 0x00000007);
+			mdelay(5);
+			tc358762_i2c_one_byte_write_reg(toshiba_bridge_client, 0x0504, reg);
+			mdelay(5);
+			res_reg_val[0] = tc358762_i2c_one_byte_read_reg(toshiba_bridge_client, 0x0268);
+
+			pr_err("[LCM][HX8352]%s: 111 0x%02x, 0x%02x\n", __func__, reg, res_reg_val[0]);
+
+			tc358762_i2c_write_reg(toshiba_bridge_client, 0x0440, 0x00000110);
+			tc358762_i2c_write_reg(toshiba_bridge_client, 0x0410, 0x00000007);
+			mdelay(5);
+			tc358762_i2c_one_byte_write_reg(toshiba_bridge_client, 0x0504, reg);
+			mdelay(5);
+			res_reg_val[0] = tc358762_i2c_one_byte_read_reg(toshiba_bridge_client, 0x0268);
+
+			tot_reg_val_len = 1;
+			pr_err("[LCM][HX8352]%s: 222 0x%02x, 0x%02x\n", __func__, reg, res_reg_val[0]);
+
+			#else
+
+			pr_err("[HL]%s, %d\n", __func__, __LINE__);
+
+			tc358762_i2c_write_reg(toshiba_bridge_client, 0x0440, 0x00000110);
+			tc358762_i2c_write_reg(toshiba_bridge_client, 0x0410, 0x00000007);
+
+			if (ctrl_pdata->read_reg_cmds.cmd_cnt)
+			{
+				ctrl_pdata->read_reg_cmds.cmds->payload[2] = reg;
+
+				pr_err("[HL]%s, %d: read_reg_cmds.cmds->payload[0],[1],[2] = 0x%02x, 0x%02x, 0x%02x\n", __func__, __LINE__, ctrl_pdata->read_reg_cmds.cmds->payload[0], ctrl_pdata->read_reg_cmds.cmds->payload[1], ctrl_pdata->read_reg_cmds.cmds->payload[2]);
+
+				//Send Dcs command
+				mdss_dsi_panel_cmds_send(ctrl_pdata, &ctrl_pdata->read_reg_cmds, CMD_REQ_COMMIT);
+			}
+
+			pr_err("[HL]%s, %d\n", __func__, __LINE__);
+
+			#if 1
+
+			rx_buf = kzalloc(PANEL_REG_ADDR_LEN, GFP_KERNEL);
+			read_reg[0] = 0x68;
+			read_reg[1] = 0x02;
+			mdss_dsi_panel_cmd_read(ctrl_pdata, read_reg[0], read_reg[1],
+							NULL, rx_buf, reg_len);
+
+			pr_err("%s: (reg, value) = (0x%x, 0x%x)\n", __func__, reg, rx_buf[0]);
+
+			//memcpy(res_reg_val, rx_buf, sizeof(res_reg_val));
+			for (i = 0; i < reg_len; i++)
+			{
+				res_reg_val[i] = rx_buf[i];
+			}
+			tot_reg_val_len = reg_len;
+
+			pr_err("\n\n******************** [HL] %s: res_reg_val = (0x%x) **********************\n\n", __func__, res_reg_val[0]);
+
+			kfree(rx_buf);
+
+			#else
+
+			res_reg_val[0] = tc358762_i2c_one_byte_read_reg(toshiba_bridge_client, 0x0268);
+			tot_reg_val_len = 1;
+			pr_err("[LCM][HX8352]%s: 0x%02x, 0x%02x\n", __func__, reg, res_reg_val[0]);
+
+			#endif
+
+			#endif
+		}
+
+		return;
+	}
+	//SW4-HL-Display-ESD-Recover-00+}_20190315
 
 	rx_buf = kzalloc(PANEL_REG_ADDR_LEN, GFP_KERNEL);
 	read_reg[0] = reg;
@@ -1703,7 +1832,45 @@ void mdss_dsi_panel_write_reg_set(struct mdss_dsi_ctrl_pdata *ctrl_pdata, unsign
 	int i = 0;
 	long input = 0;
 
+	int lms_reg_addr = 0;		//SW4-HL-Display-ESD-Recover-00+_20190315
+	int lms_reg_write = 0;	//SW4-HL-Display-ESD-Recover-00+_20190315
+
 	pr_err("\n\n*** [HL] %s, len = %d, data = (%s) ***\n\n", __func__, len, data);
+
+	//SW4-HL-Display-ESD-Recover-00+{_20190315
+	if (strstr(saved_command_line, "androidboot.device=LMS") != NULL)
+	{
+		for(token = strsep(&data, delim); token != NULL; token = strsep(&data, delim))
+		{
+			pr_err("\n\n******************** [HL] %s: data = %s **********************\n\n", __func__, token);
+
+			if (strict_strtol(token, 16, &input))
+			{
+				return;
+			}
+
+			if (i == 0)
+			{
+				lms_reg_addr = input;
+			}
+			else if (i == 1)
+			{
+				lms_reg_write = (input << 8 | lms_reg_addr);
+				pr_err("\n\n******************** [HL] %s: lms_reg_write = 0x%04x **********************\n\n", __func__, lms_reg_write);
+				tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, lms_reg_write);
+				return;
+			}
+
+			//if (strict_strtol(token, 16, &input))
+			//{
+			//	return;
+			//}
+			//ctrl_pdata->write_reg_cmds.cmds->payload[i] = input;
+
+			i++;
+		}
+	}
+	//SW4-HL-Display-ESD-Recover-00+}_20190315
 
 	if (ctrl_pdata->write_reg_cmds.cmd_cnt)
 	{
@@ -1732,6 +1899,22 @@ void mdss_dsi_panel_write_reg_set(struct mdss_dsi_ctrl_pdata *ctrl_pdata, unsign
 	return;
 }
 //SW4-HL-Display-DynamicReadWriteRegister-00+}_20160729
+
+//SW4-HL-Display-ESD-Recover-00+{_20190315
+void mdss_dsi_panel_esd_recover(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
+{
+	pr_debug("\n\n*** [HL] %s, %d: <-- START\n", __func__, __LINE__);
+
+	if (ctrl_pdata->write_reg_cmds.cmd_cnt)
+	{
+		mdss_dsi_panel_cmds_send(ctrl_pdata, &ctrl_pdata->write_reg_cmds, CMD_REQ_COMMIT);
+	}
+
+	pr_debug("\n\n*** [HL] %s, %d: <-- END\n", __func__, __LINE__);
+
+	return;
+}
+//SW4-HL-Display-ESD-Recover-00+}_20190315
 
 static int mdss_dsi_panel_low_power_config(struct mdss_panel_data *pdata,
 	int enable)
@@ -2466,21 +2649,13 @@ static bool mdss_dsi_cmp_panel_reg_v2(struct mdss_dsi_ctrl_pdata *ctrl)
 	for (i = 0; i < ctrl->status_cmds.cmd_cnt; i++)
 		len += lenp[i];
 
-	for (i = 0; i < len; i++) {
-		pr_debug("[%i] return:0x%x status:0x%x\n",
-			i, (unsigned int)ctrl->return_buf[i],
-			(unsigned int)ctrl->status_value[j + i]);
-		MDSS_XLOG(ctrl->ndx, ctrl->return_buf[i],
-			ctrl->status_value[j + i]);
-		j += len;
-	}
-
 	for (j = 0; j < ctrl->groups; ++j) {
 		for (i = 0; i < len; ++i) {
-
-			pr_debug("%s: [LCM-ESD] panel status = 0x%x (0x%x)\n", __func__,
-                                 ctrl->return_buf[i], ctrl->status_value[group + i]);
-
+			pr_debug("[%i] return:0x%x status:0x%x\n",
+				i, ctrl->return_buf[i],
+				(unsigned int)ctrl->status_value[group + i]);
+			MDSS_XLOG(ctrl->ndx, ctrl->return_buf[i],
+					ctrl->status_value[group + i]);
 			if (ctrl->return_buf[i] !=
 				ctrl->status_value[group + i])
 				break;
@@ -3564,10 +3739,23 @@ static int mdss_panel_parse_dt(struct device_node *np,
 		"qcom,mdss-dsi-lane-0-state");
 	pinfo->mipi.data_lane1 = of_property_read_bool(np,
 		"qcom,mdss-dsi-lane-1-state");
-	pinfo->mipi.data_lane2 = of_property_read_bool(np,
-		"qcom,mdss-dsi-lane-2-state");
-	pinfo->mipi.data_lane3 = of_property_read_bool(np,
-		"qcom,mdss-dsi-lane-3-state");
+
+	//SW4-HL-Display-BringUpSIM-01+{_20190409
+	if (strstr(saved_command_line, "androidboot.device=LMS") != NULL)
+	{
+		//Force to config lane2 and lane3 as 0 especially for sim panel because LMS only usese two lanes
+		//This can fix sleep current spends too much current in LMS without plugging any panel
+		pinfo->mipi.data_lane2 = 0;
+		pinfo->mipi.data_lane3 = 0;
+	}
+	else
+	{
+		pinfo->mipi.data_lane2 = of_property_read_bool(np,
+			"qcom,mdss-dsi-lane-2-state");
+		pinfo->mipi.data_lane3 = of_property_read_bool(np,
+			"qcom,mdss-dsi-lane-3-state");
+	}
+	//SW4-HL-Display-BringUpSIM-01+}_20190409
 
 	if (pinfo->mipi.data_lane0)
 		lanes++;
@@ -3713,6 +3901,10 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->cabc_moving_cmds_beforeInit,
 		"qcom,mdss-dsi-cabc-moving-command-BeforeInit", "qcom,mdss-dsi-cabc-moving-command-BeforeInit-state");
 	//SW4-HL-Display-SendCECTCABCBeforeInit-00*}_20161213
+
+	//SW4-HL-Display-DynamicReadWriteRegister-00+_20160729
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->write_reg_cmds,
+		"fih,mdss-dsi-write-reg-command", "fih,mdss-dsi-write-reg-command-state");
 
 	rc = mdss_dsi_parse_panel_features(np, ctrl_pdata);
 	if (rc) {

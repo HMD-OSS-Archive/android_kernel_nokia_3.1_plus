@@ -289,14 +289,6 @@ static inline int inet_csk_reqsk_queue_len(const struct sock *sk)
 	return reqsk_queue_len(&inet_csk(sk)->icsk_accept_queue);
 }
 
-//QC patch for [RHD-7191][VTS 9.0 r4]CtsLibcoreTestCases fail
-/*
-static inline int inet_csk_reqsk_queue_young(const struct sock *sk)
-{
-	return reqsk_queue_len_young(&inet_csk(sk)->icsk_accept_queue);
-}
-*/
-
 static inline int inet_csk_reqsk_queue_is_full(const struct sock *sk)
 {
 	return inet_csk_reqsk_queue_len(sk) >= sk->sk_max_ack_backlog;

@@ -594,14 +594,6 @@ int dccp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 	if (inet_csk_reqsk_queue_is_full(sk))
 		goto drop;
 
-	/*
-	 * Accept backlog is full. If we have already queued enough
-	 * of warm entries in syn queue, drop request. It is better than
-	 * clogging syn queue with openreqs with exponentially increasing
-	 * timeout.
-	 */
-	//QC patch for [RHD-7191][VTS 9.0 r4]CtsLibcoreTestCases fail
-	//if (sk_acceptq_is_full(sk) && inet_csk_reqsk_queue_young(sk) > 1)
 	if (sk_acceptq_is_full(sk))
 		goto drop;
 

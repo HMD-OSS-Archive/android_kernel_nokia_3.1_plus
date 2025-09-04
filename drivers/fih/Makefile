@@ -11,6 +11,8 @@ obj-y += fih_touch.o
 obj-y += fih_lcm.o
 obj-y += fih_cpu.o
 obj-y += fih_rsutoken.o
+obj-$(CONFIG_FIH_DSAR) += fih_karkit.o
+obj-$(CONFIG_FIH_DSAR) += fih_rfcable_class.o
 
 obj-$(CONFIG_FIH_DEVICE_TREE_DEBUG) += dt_debug/
 obj-$(CONFIG_FIH_HALL_SENSOR) += hallsensor/

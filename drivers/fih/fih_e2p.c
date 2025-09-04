@@ -19,6 +19,7 @@ static char imei1[FIH_MFD_DATA_LEN] = "0";
 static char imei2[FIH_MFD_DATA_LEN] = "0";
 static char simconfig[FIH_MFD_DATA_LEN] = "0";
 static char batteryinfo[FIH_MFD_DATA_LEN] = "0";
+static char bt2_mac_addr[FIH_MFD_DATA_LEN] = "0";
 
 int fih_e2p_setup(void)
 {
@@ -37,6 +38,7 @@ int fih_e2p_setup(void)
 	sprintf(imei2, "%s", e2p->item[FIH_MFD_ITEM_IMEI_2].data);
 	sprintf(simconfig, "%s", e2p->item[FIH_MFD_ITEM_SIMCONFIG].data);
 	sprintf(batteryinfo, "%s", e2p->item[FIH_MFD_ITEM_BATT_INFO].data);
+	sprintf(bt2_mac_addr, "%s", e2p->item[FIH_MFD_ITEM_BT2_MAC].data);
 	
 	iounmap(e2p);
 
@@ -201,6 +203,34 @@ static struct file_operations batteryinfo_file_ops = {
 	.release = single_release
 };
 
+static int fih_proc_read_bt2_mac_show(struct seq_file *m, void *v)
+{
+	char tmp[(FIH_MFD_DATA_LEN * 2)];
+	unsigned int i, k;
+
+	/* 0123456789AB -> 01:23:45:67:89:AB */
+	memset(tmp, 0, sizeof(tmp));
+	k = 0;
+	for (i=0; i<strlen(bt2_mac_addr); i++) {
+		if ((i > 0)&&((i % 2) == 0)) tmp[k++] = ':';
+		tmp[k++] = bt2_mac_addr[i];
+	}
+	seq_printf(m, "%s\n", tmp);
+	return 0;
+}
+
+static int bt2_mac_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, fih_proc_read_bt2_mac_show, NULL);
+};
+
+static struct file_operations bt2_mac_file_ops = {
+	.owner   = THIS_MODULE,
+	.open    = bt2_mac_proc_open,
+	.read    = seq_read,
+	.llseek  = seq_lseek,
+	.release = single_release
+};
 
 static struct {
 		char *name;
@@ -213,6 +243,7 @@ static struct {
 	{"imei1", &imei_file_ops},
 	{"imei2", &imei2_file_ops},
 	{"batteryinfo", &batteryinfo_file_ops},
+	{"bt2_mac", &bt2_mac_file_ops},
 	{NULL}, };
 
 static int __init fih_e2p_init(void)

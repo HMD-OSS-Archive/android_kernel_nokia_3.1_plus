@@ -2450,6 +2450,7 @@ const struct wlan_nv_tables g_fih_wlan_nv[] = {
     {"EAG", "WCNSS_qcom_wlan_EAG_nv.bin"},
     {"RHD", "WCNSS_qcom_wlan_RHD_nv.bin"},
     {"OD6", "WCNSS_qcom_wlan_OD6_nv.bin"},
+    {"LMS", "WCNSS_qcom_wlan_LMS_nv.bin"},
 };
 
 int fih_nv_read(char *FIH_WLAN_NV_FILE , size_t size)
@@ -3545,10 +3546,11 @@ static int wcnss_notif_cb(struct notifier_block *this, unsigned long code,
 			ret = wcnss_wlan_power(&pdev->dev, pwlanconfig,
 					       WCNSS_WLAN_SWITCH_ON, &xo_mode);
 			wcnss_set_iris_xo_mode(xo_mode);
-			if (ret)
+			if (ret){
 				wcnss_log(ERR, "wcnss_wlan_power failed\n");
 				printk("BBox::UEC;13::0\n");
 				pr_info("BBox; %s: WCNSS Power-up failed. ret=%d\n",__func__, ret);
+				}
 		}
 	} else if (code == SUBSYS_PROXY_UNVOTE) {
 		if (pdev && pwlanconfig) {

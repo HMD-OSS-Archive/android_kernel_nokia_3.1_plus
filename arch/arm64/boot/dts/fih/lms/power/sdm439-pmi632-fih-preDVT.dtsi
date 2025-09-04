@@ -1,0 +1,33 @@
+&pmi632_gpios {
+	gpio_otg_enable_perdvt {
+		gpio_otg_enable_default_perdvt: gpio_otg_enable_default_perdvt {
+			pins = "gpio2";
+			function = "normal";
+			int-output-low;
+			power-source = <0>;
+		};
+	};
+};
+
+&tlmm {
+	chg_terminal_detect_perdvt {
+		chg_terminal_detect_default_perdvt: chg_terminal_detect_default_perdvt {
+			mux {
+				pins = "gpio9";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio9";
+				drive-strength = <8>;
+				bias-disable;
+				output-low;
+			};
+		};
+	};
+};
+
+&pmi632_charger {
+	qcom,otg-enable-pin = <&pmi632_gpios 2 0>; //set low to charge, set hight to otg
+	qcom,chg-terminal-pin = <&tlmm 9 0>;
+	pinctrl-0 = <&gpio_otg_enable_default_perdvt &chg_terminal_detect_default_perdvt>;
+};

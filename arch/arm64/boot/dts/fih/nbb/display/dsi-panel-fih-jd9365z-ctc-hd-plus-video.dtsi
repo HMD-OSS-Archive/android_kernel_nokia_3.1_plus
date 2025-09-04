@@ -38,9 +38,6 @@
 		qcom,mdss-dsi-underflow-color = <0xff>;
 		qcom,mdss-dsi-border-color = <0>;
 		qcom,mdss-dsi-on-command = [
-			39 01 00 00 00 00 02 51 FF
-			39 01 00 00 00 00 02 53 24
-			05 01 00 00 00 00 02 35 00
 			05 01 00 00 F0 00 02 11 00
 			39 01 00 00 00 00 04 DF 93 65 F8
 			39 01 00 00 00 00 05 B9 00 C4 13 02                       
@@ -78,54 +75,6 @@
 		qcom,mdss-pan-physical-height-dimension = <123>;
 		qcom,mdss-pan-physical-width-dimension-full = <6188>;
 		qcom,mdss-pan-physical-height-dimension-full = <12377>;
-
-		/* ******************** */
-		/* START of CABC */
-		/* ******************** */
-		qcom,mdss-dsi-cabc-off-command = [
-			39 01 00 00 00 00 02 55 00
-		];
-
-		qcom,mdss-dsi-cabc-ui-command = [
-			39 01 00 00 00 00 02 55 01
-		];
-
-		qcom,mdss-dsi-cabc-still-command = [
-			39 01 00 00 00 00 02 55 02
-		];
-
-		qcom,mdss-dsi-cabc-moving-command = [
-			39 01 00 00 00 00 02 55 03
-		];
-
-		qcom,mdss-dsi-cabc-off-command-state = "dsi_hs_mode";
-		qcom,mdss-dsi-cabc-ui-command-state = "dsi_hs_mode";
-		qcom,mdss-dsi-cabc-still-command-state = "dsi_hs_mode";
-		qcom,mdss-dsi-cabc-moving-command-state = "dsi_hs_mode";
-
-		qcom,mdss-dsi-cabc-off-command-BeforeInit = [
-			39 01 00 00 00 00 02 55 00
-		];
-
-		qcom,mdss-dsi-cabc-ui-command-BeforeInit = [
-			39 01 00 00 00 00 02 55 01
-		];
-
-		qcom,mdss-dsi-cabc-still-command-BeforeInit = [
-			39 01 00 00 00 00 02 55 02
-		];
-
-		qcom,mdss-dsi-cabc-moving-command-BeforeInit = [
-			39 01 00 00 00 00 02 55 03
-		];
-
-		qcom,mdss-dsi-cabc-off-command-BeforeInit-state = "dsi_lp_mode";
-		qcom,mdss-dsi-cabc-ui-command-BeforeInit-state = "dsi_lp_mode";
-		qcom,mdss-dsi-cabc-still-command-BeforeInit-state = "dsi_lp_mode";
-		qcom,mdss-dsi-cabc-moving-command-BeforeInit-state = "dsi_lp_mode";
-		/* ******************** */
-		/* END of CABC */
-		/* ******************** */
 
 		/* ******************** */
 		/* START of Dynamic Read Write Register */
@@ -178,12 +127,11 @@
 	qcom,mdss-dsi-panel-status-check-mode = "reg_read";
 	qcom,mdss-dsi-panel-status-command = [
 		06 01 00 01 00 00 01 0A
-		06 01 00 01 00 00 01 F0
 	];
 	qcom,mdss-dsi-panel-status-command-state = "dsi_lp_mode";
-	qcom,mdss-dsi-panel-status-value = <0x1C>,<0xC0>;
-	qcom,mdss-dsi-panel-on-check-value = <0x1C>,<0xC0>;
-	qcom,mdss-dsi-panel-status-read-length = <1>,<1>;
+	qcom,mdss-dsi-panel-status-value = <0x1C>;
+	qcom,mdss-dsi-panel-on-check-value = <0x1C>;
+	qcom,mdss-dsi-panel-status-read-length = <1>;
 	qcom,mdss-dsi-panel-max-error-count = <3>;
 	/*****************************************/
 	/* ESD Check Recovery  - END     */

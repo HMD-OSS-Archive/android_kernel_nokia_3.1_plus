@@ -35,6 +35,12 @@
 		qcom,csi-vdd-voltage = <800000>;
 		qcom,mipi-csi-vdd-supply = <&pm8953_l23>;
 	};
+	qcom,csiphy@1b34000 {
+		compatible = "qcom,csiphy-v10.00", "qcom,csiphy";
+	};
+	qcom,csiphy@1b35000 {
+		compatible = "qcom,csiphy-v10.00", "qcom,csiphy";
+	};
 
 	/delete-node/ qcom,msm-cpufreq;
 	msm_cpufreq: qcom,msm-cpufreq {
@@ -147,7 +153,8 @@
 			< 1497600  400000 >,
 			< 1708800  533000 >,
 			< 1804800  576000 >,
-			< 1958400  576000 >;
+			< 1958400  576000 >,
+			< 2016000  576000 >;
 		cpu-to-dev-map-4 =
 			<  768000  400000 >,
 			<  998400  400000 >,
@@ -181,7 +188,7 @@
 				1708800	327
 				1804800	343
 				1958400	445
-				2016000 470
+				2016000	470
 			>;
 			idle-cost-data = <
 				100 80 60 40
@@ -207,7 +214,7 @@
 				1708800	85
 				1804800	88
 				1958400	110
-				2016000 120
+				2016000	120
 			>;
 			idle-cost-data = <
 				4 3 2 1
@@ -345,7 +352,7 @@
 		< 1958400000 5>,
 		< 2016000000 6>;
 
-	qcom,speed1-bin-v0-cci =
+	qcom,speed4-bin-v0-cci =
 		<          0 0>,
 		<  400000000 1>,
 		<  533333333 3>;
@@ -674,6 +681,10 @@
 	};
 };
 
+&sdhc_1 {
+	qcom,ddr-config = <0x00040868>;
+};
+
 &mdss_mdp {
 	qcom,vbif-settings = <0xd0 0x20>;
 };
@@ -689,5 +700,5 @@
 };
 
 &usb_otg {
-	qcom,hsusb-otg-phy-init-seq = <0x06 0x82 0xffffffff>;
+	qcom,hsusb-otg-phy-init-seq = <0x43 0x80 0x06 0x82 0xffffffff>;
 };

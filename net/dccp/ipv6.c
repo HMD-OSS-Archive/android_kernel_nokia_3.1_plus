@@ -328,8 +328,6 @@ static int dccp_v6_conn_request(struct sock *sk, struct sk_buff *skb)
 	if (inet_csk_reqsk_queue_is_full(sk))
 		goto drop;
 
-	//QC patch for [RHD-7191][VTS 9.0 r4]CtsLibcoreTestCases fail
-	//if (sk_acceptq_is_full(sk) && inet_csk_reqsk_queue_young(sk) > 1)
 	if (sk_acceptq_is_full(sk))
 		goto drop;
 

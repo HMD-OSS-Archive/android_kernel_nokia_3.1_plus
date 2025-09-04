@@ -24,10 +24,10 @@
 	/delete-node/ etm@619d000;
 	/delete-node/ etm@619e000;
 	/delete-node/ etm@619f000;
-	/delete-node/ cti@61b8000;
-	/delete-node/ cti@61b9000;
-	/delete-node/ cti@61ba000;
-	/delete-node/ cti@61bb000;
+	/delete-node/ cti@6198000;
+	/delete-node/ cti@6199000;
+	/delete-node/ cti@619a000;
+	/delete-node/ cti@619b000;
 	/delete-node/ jtagmm@619c000;
 	/delete-node/ jtagmm@619d000;
 	/delete-node/ jtagmm@619e000;
@@ -224,16 +224,23 @@
 	};
 
 	/* Disable secure_mem node */
+	/* SDM429 should support security display, enable to fix VTS GTS test fail items*/
+	/*
 	qcom,ion {
 		/delete-node/ qcom,ion-heap@8;
 	};
+	*/
+	
 	/* delete hypervisor node for GPU*/
 	/delete-node/ qcom,kgsl-hyp;
 };
 
+/* SDM429 should support security display, enable to fix VTS GTS test fail items*/
+/*
 &secure_mem {
 	status = "disabled";
 };
+*/
 
 &qseecom_ta_mem {
 	size = <0 0x400000>;
@@ -260,6 +267,9 @@
 };
 
 /* Disable secure context for Graphics*/
+/* SDM429 should support security display, enable to fix VTS GTS test fail items*/
+/*
 &kgsl_msm_iommu {
 	/delete-node/ gfx3d_secure;
 };
+*/

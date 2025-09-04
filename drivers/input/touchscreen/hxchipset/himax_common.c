@@ -392,6 +392,7 @@ static int i_get_FW(void)
 	} else if (ic_data->vendor_sensor_id == 0x44) {
 		memcpy(firmware_name, "Himax_firmware_eag_44.bin", sizeof(char)*strlen("Himax_firmware_eag_44.bin"));
 	} else {
+		memcpy(firmware_name, "Himax_firmware_eag_ld.bin", sizeof(char)*strlen("Himax_firmware_eag_ld.bin"));
 		E("%s,No such sensor_id please check !\n", __func__);
 		return OPEN_FILE_FAIL;
 	}
@@ -2016,6 +2017,12 @@ int himax_chip_common_probe(struct i2c_client *client, const struct i2c_device_i
 	g_auto_update_flag |= himax_flash_lastdata_check(client);
 	if(g_auto_update_flag)
 		goto FW_force_upgrade;
+	else
+	{
+		#ifdef HX_RST_PIN_FUNC
+		himax_ic_reset(false,false);
+		#endif
+	}
 #endif
 
 	if (g_f_hx_fw_update == 0) {

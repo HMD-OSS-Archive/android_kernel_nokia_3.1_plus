@@ -959,7 +959,7 @@ static struct usb_driver usb_audio_driver = {
 	.resume =	usb_audio_resume,
 	.reset_resume =	usb_audio_reset_resume,
 	.id_table =	usb_audio_ids,
-	.supports_autosuspend = 1,
+	.supports_autosuspend = 0,
 };
 
 module_usb_driver(usb_audio_driver);

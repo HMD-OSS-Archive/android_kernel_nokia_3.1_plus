@@ -29,6 +29,8 @@
 #include "smb5-reg.h"
 #include "smb5-lib.h"
 #include "schgm-flash.h"
+#include <linux/of_gpio.h>
+#include <linux/gpio.h>
 
 static struct smb_params smb5_pmi632_params = {
 	.fcc			= {
@@ -422,7 +424,8 @@ static int smb5_chg_config_init(struct smb5 *chip)
 		break;
 	case PMI632_SUBTYPE:
 		chip->chg.smb_version = PMI632_SUBTYPE;
-		chg->wa_flags |= WEAK_ADAPTER_WA | USBIN_OV_WA;
+		chg->wa_flags |= WEAK_ADAPTER_WA | USBIN_OV_WA |
+					CHG_TERMINATION_WA;
 		if (pmic_rev_id->rev4 >= 2)
 			chg->wa_flags |= MOISTURE_PROTECTION_WA;
 		chg->param = smb5_pmi632_params;
@@ -659,11 +662,41 @@ static int smb5_parse_dt(struct smb5 *chip)
 
 	chg->moisture_protection_enabled = of_property_read_bool(node,
 					"qcom,moisture-protection-enable");
+
+	chg->fcc_stepper_enable = of_property_read_bool(node,
+					"qcom,fcc-stepping-enable");
+
 	
 	chg->usb_thermal_mitigation = 0;
 	chg->usb_thermal_function = false;
 	chg->usb_thermal_function = of_property_read_bool(node,
 					"qcom,usb-thermal-function");
+
+	chg->od6_prj_only = 0;
+	chg->od6_prj_only = of_property_read_bool(node, "qcom,od6-project");
+	chg->lms_prj_only = 0;
+	chg->lms_prj_only = of_property_read_bool(node, "qcom,lms-project");
+	if(chg->od6_prj_only || chg->lms_prj_only)
+	{	
+		chg->od6_otg_enable_pin = of_get_named_gpio(node,
+			"qcom,otg-enable-pin", 0);
+		if (!gpio_is_valid(chg->od6_otg_enable_pin))
+			pr_info("%s: od6_otg_enable_pin gpio not specified\n", __func__);
+
+		chg->chg_terminal_pin = of_get_named_gpio(node,
+			"qcom,chg-terminal-pin", 0);
+		if (!gpio_is_valid(chg->chg_terminal_pin))
+			pr_info("%s: chg_terminal_pin gpio not specified\n", __func__);
+	}
+	
+	chg->extra_battery_current = 1500000;
+	if(chg->lms_prj_only)
+	{
+		rc = of_property_read_u32(node,
+				"fih,extra-battery-current-ua", &chg->extra_battery_current);
+		pr_info("chg->extra_battery_current = %d\n", chg->extra_battery_current);
+	}
+	
 	return 0;
 }
 
@@ -1557,6 +1590,7 @@ static enum power_supply_property smb5_batt_props[] = {
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
 	POWER_SUPPLY_PROP_RECHARGE_SOC,
 	POWER_SUPPLY_PROP_CHARGE_FULL,
+	POWER_SUPPLY_PROP_FCC_STEPPER_ENABLE,
 	POWER_SUPPLY_PROP_MANUFACTURER,
 };
 
@@ -1662,6 +1696,8 @@ static int smb5_batt_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		rc = smblib_get_prop_from_bms(chg,
 				POWER_SUPPLY_PROP_CURRENT_NOW, val);
+		if (!rc)
+			val->intval *= (-1);
 		break;
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
 		val->intval = get_client_vote(chg->fcc_votable,
@@ -1714,6 +1750,8 @@ static int smb5_batt_get_prop(struct power_supply *psy,
 		rc = smblib_get_prop_from_bms(chg,
 				POWER_SUPPLY_PROP_CHARGE_FULL, val);
 		break;
+	case POWER_SUPPLY_PROP_FCC_STEPPER_ENABLE:
+		val->intval = chg->fcc_stepper_enable;
 	case POWER_SUPPLY_PROP_MANUFACTURER:
 		rc = -EINVAL;
 		if (chg->bms_psy)
@@ -3464,6 +3502,13 @@ static int smb5_remove(struct platform_device *pdev)
 	device_remove_file(&pdev->dev, &dev_attr_type_c_status); // FIHTDC, IdaChiang, add for FAP usb resistance
 	device_remove_file(&pdev->dev, &dev_attr_jeita_full_capacity); // FIHTDC, IdaChiang, add for battery protect apk
 
+	if(chg->od6_prj_only || chg->lms_prj_only)
+	{
+		if (gpio_is_valid(chg->od6_otg_enable_pin))
+			gpio_free(chg->od6_otg_enable_pin);
+		if (gpio_is_valid(chg->chg_terminal_pin))
+			gpio_free(chg->chg_terminal_pin);
+	}
 	/* force enable APSD */
 	smblib_masked_write(chg, USBIN_OPTIONS_1_CFG_REG,
 				BC1P2_SRC_DETECT_BIT, BC1P2_SRC_DETECT_BIT);

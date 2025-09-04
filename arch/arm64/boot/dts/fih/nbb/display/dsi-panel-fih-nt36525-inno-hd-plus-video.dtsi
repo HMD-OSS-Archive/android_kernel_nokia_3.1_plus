@@ -348,7 +348,6 @@
 			39 01 00 00 00 00 0D BB 03 27 03 36 03 44 03 50 03 57 03 DB 
                     39 01 00 00 0A 00 02 FF 10
                     39 01 00 00 00 00 02 FB 01
-			39 01 00 00 00 00 02 35 00 
                     05 01 00 00 00 00 02 29 00
                     05 01 00 00 78 00 02 11 00
 		];
@@ -378,54 +377,6 @@
 		qcom,mdss-pan-physical-height-dimension = <136>;
 		qcom,mdss-pan-physical-width-dimension-full = <6804>;
 		qcom,mdss-pan-physical-height-dimension-full = <13608>;
-
-		/* ******************** */
-		/* START of CABC */
-		/* ******************** */
-		qcom,mdss-dsi-cabc-off-command = [
-			39 01 00 00 00 00 02 55 00
-		];
-
-		qcom,mdss-dsi-cabc-ui-command = [
-			39 01 00 00 00 00 02 55 01
-		];
-
-		qcom,mdss-dsi-cabc-still-command = [
-			39 01 00 00 00 00 02 55 02
-		];
-
-		qcom,mdss-dsi-cabc-moving-command = [
-			39 01 00 00 00 00 02 55 03
-		];
-
-		qcom,mdss-dsi-cabc-off-command-state = "dsi_hs_mode";
-		qcom,mdss-dsi-cabc-ui-command-state = "dsi_hs_mode";
-		qcom,mdss-dsi-cabc-still-command-state = "dsi_hs_mode";
-		qcom,mdss-dsi-cabc-moving-command-state = "dsi_hs_mode";
-
-		qcom,mdss-dsi-cabc-off-command-BeforeInit = [
-			39 01 00 00 00 00 02 55 00
-		];
-
-		qcom,mdss-dsi-cabc-ui-command-BeforeInit = [
-			39 01 00 00 00 00 02 55 01
-		];
-
-		qcom,mdss-dsi-cabc-still-command-BeforeInit = [
-			39 01 00 00 00 00 02 55 02
-		];
-
-		qcom,mdss-dsi-cabc-moving-command-BeforeInit = [
-			39 01 00 00 00 00 02 55 03
-		];
-
-		qcom,mdss-dsi-cabc-off-command-BeforeInit-state = "dsi_lp_mode";
-		qcom,mdss-dsi-cabc-ui-command-BeforeInit-state = "dsi_lp_mode";
-		qcom,mdss-dsi-cabc-still-command-BeforeInit-state = "dsi_lp_mode";
-		qcom,mdss-dsi-cabc-moving-command-BeforeInit-state = "dsi_lp_mode";
-		/* ******************** */
-		/* END of CABC */
-		/* ******************** */
 
 		/* ******************** */
 		/* START of Dynamic Read Write Register */

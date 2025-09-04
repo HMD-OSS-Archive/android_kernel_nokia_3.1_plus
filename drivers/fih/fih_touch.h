@@ -11,9 +11,9 @@ struct fih_touch_cb {
 	void (*touch_fwupgrade)(int);
 	void (*touch_fwupgrade_read)(char *);
 	void (*touch_vendor_read)(char *);
-	#if 0
 	void (*touch_scover_write)(int);
 	int (*touch_scover_read)(void);
+	#if 0
 	int (*touch_fwback_read)(void);
 	void (*touch_fwback_write)(void);
 	int (*touch_gesture_read)(void);

@@ -577,7 +577,7 @@ static int __read_queue(struct vidc_iface_q_info *qinfo, u8 *packet,
 	else
 		queue->qhdr_rx_req = receive_request;
 
-	queue->qhdr_read_idx = new_read_idx;        
+	queue->qhdr_read_idx = new_read_idx;
 	/*
 	 * mb() to ensure qhdr is updated in main memory
 	 * so that venus reads the updated header values

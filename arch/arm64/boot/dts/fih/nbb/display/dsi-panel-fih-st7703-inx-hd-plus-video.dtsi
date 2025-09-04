@@ -57,10 +57,6 @@
 			39 01 00 00 00 00 40 E9 02 00 0A 05 AE B0 B0 12 31 45 4F 0C B0 B0 4B 0C 00 00 0D 00 00 00 00 00 1A 00 00 00 08 64 AB 02 48 18 38 88 88 85 88 81 87 5A B1 38 08 28 88 84 86 88 00 40 00 01 12 B0 B0 4B 0A 14 00 00 00
 			39 01 00 00 00 00 3E EA 96 00 01 01 00 36 00 00 00 00 00 00 58 71 AB 64 28 08 38 88 88 81 88 84 86 0A B5 38 18 48 88 82 80 88 23 00 00 00 04 00 00 00 05 C0 00 00 00 00 00 00 00 00 00 00 40 B0 B0 00 00 00 00
 			39 01 00 00 00 00 23 E0 00 09 0D 21 26 3F 3D 33 07 0C 0D 11 14 11 12 10 17 00 09 0D 21 26 3F 3D 33 07 0C 0D 11 14 11 12 10 17
-			39 01 00 00 00 00 02 C7 B0
-			39 01 00 00 00 00 03 C8 00 04
-			39 01 00 00 00 00 02 51 FF
-			39 01 00 00 00 00 02 53 2C
 			05 01 00 00 0A 00 02 29 00
 		];
 		qcom,mdss-dsi-off-command = [
@@ -89,54 +85,6 @@
 		qcom,mdss-pan-physical-height-dimension = <123>;
 		qcom,mdss-pan-physical-width-dimension-full = <6188>;
 		qcom,mdss-pan-physical-height-dimension-full = <12377>;
-
-		/* ******************** */
-		/* START of CABC */
-		/* ******************** */
-		qcom,mdss-dsi-cabc-off-command = [
-			39 01 00 00 00 00 02 55 00
-		];
-
-		qcom,mdss-dsi-cabc-ui-command = [
-			39 01 00 00 00 00 02 55 01
-		];
-
-		qcom,mdss-dsi-cabc-still-command = [
-			39 01 00 00 00 00 02 55 02
-		];
-
-		qcom,mdss-dsi-cabc-moving-command = [
-			39 01 00 00 00 00 02 55 03
-		];
-
-		qcom,mdss-dsi-cabc-off-command-state = "dsi_hs_mode";
-		qcom,mdss-dsi-cabc-ui-command-state = "dsi_hs_mode";
-		qcom,mdss-dsi-cabc-still-command-state = "dsi_hs_mode";
-		qcom,mdss-dsi-cabc-moving-command-state = "dsi_hs_mode";
-
-		qcom,mdss-dsi-cabc-off-command-BeforeInit = [
-			39 01 00 00 00 00 02 55 00
-		];
-
-		qcom,mdss-dsi-cabc-ui-command-BeforeInit = [
-			39 01 00 00 00 00 02 55 01
-		];
-
-		qcom,mdss-dsi-cabc-still-command-BeforeInit = [
-			39 01 00 00 00 00 02 55 02
-		];
-
-		qcom,mdss-dsi-cabc-moving-command-BeforeInit = [
-			39 01 00 00 00 00 02 55 03
-		];
-
-		qcom,mdss-dsi-cabc-off-command-BeforeInit-state = "dsi_lp_mode";
-		qcom,mdss-dsi-cabc-ui-command-BeforeInit-state = "dsi_lp_mode";
-		qcom,mdss-dsi-cabc-still-command-BeforeInit-state = "dsi_lp_mode";
-		qcom,mdss-dsi-cabc-moving-command-BeforeInit-state = "dsi_lp_mode";
-		/* ******************** */
-		/* END of CABC */
-		/* ******************** */
 
 		/* ******************** */
 		/* START of Dynamic Read Write Register */

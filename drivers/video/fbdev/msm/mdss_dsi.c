@@ -52,6 +52,16 @@ static struct pm_qos_request mdss_dsi_pm_qos_request;
 #define BBOX_LCM_OEM_FUNCTIONS_FAIL	do {printk("BBox;%s: LCM OEM functions (CE or CT or BLF or CABC) functions fail!\n", __func__); printk("BBox::UEC;0::8\n");} while (0);
 //SW4-HL-Display-BBox-03+}_20161028
 
+//SW4-HL-Display-TC358762_HX8352-BringUp-00+{_20181219
+//static int futaba_epf1701aa_mipi_dsi_panel_power(struct mdss_panel_data *pdata, int on);
+struct i2c_client *toshiba_bridge_client;
+//static int bridge_resx = -1;
+//static bool dsi_power_on = false;
+//static bool lcm_power_on = false;
+//static int boost_18v_en = -1;
+//static int lcd_reset_n = -1;
+//SW4-HL-Display-TC358762_HX8352-BringUp-00+}_20181219
+
 //SW4-HL-Display-ImplementCECTCABC-00+{_20160126
 static struct mdss_dsi_ctrl_pdata *gpdata  = NULL;
 
@@ -566,12 +576,12 @@ static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 						pr_warn("%s: Panel reset failed. rc=%d\n", __func__, ret);
 						ret = 0;
 					}
-	
+
 					udelay(5 * 1000);	//IOVCC must be pulled LOW after VSP/VSN are pulled LOW	//HL+_20180717
-	
+
 					if (mdss_dsi_pinctrl_set_state(ctrl_pdata, false))
 						pr_debug("reset disable: pinctrl not enabled\n");
-	
+
 					pr_debug("[HL]%s, %d: msm_mdss_enable_vreg(0) <-- START\n", __func__, __LINE__);
 					ret = msm_mdss_enable_vreg(
 						ctrl_pdata->panel_power_data.vreg_config,
@@ -580,16 +590,16 @@ static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 									if (ret)
 										pr_err("%s: failed to disable vregs for %s\n",
 											__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
-	
-	
+
+
 									udelay(5 * 1000);	//IOVCC must be pulled LOW after VSP/VSN are pulled LOW	//HL+_20180717
-	
+
 					//SW4-HL-Display-EAG_RHD-BringUpLcmDriverIC+{_20180529
 					//Pull LOW LCM IOVCC(1.8V) Enable Pin
 					pr_debug("[HL] %s, 20180717 ctrl_pdata->lcm_iovcc_gpio = %d	**********************\n\n", __func__, ctrl_pdata->lcm_iovcc_gpio);
 					gpio_set_value(ctrl_pdata->lcm_iovcc_gpio, 0);
 					gpio_free(ctrl_pdata->lcm_iovcc_gpio);
-					//SW4-HL-Display-EAG_RHD-BringUpLcmDriverIC+}_20180529					
+					//SW4-HL-Display-EAG_RHD-BringUpLcmDriverIC+}_20180529
 				}
 			}
 			break;
@@ -629,24 +639,24 @@ static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 			}
 			break;
 //SHP OD6 Panel bringup, 20181107
-	  case FIH_SHARP_FT8607_720P_VIDEO_PANEL:
+	  case FIH_FT8607_SHARP_720P_VIDEO_PANEL:
 		  {
 		    //Pull LOW TP Rest Pin
 		    pr_debug("\n\n******************** [HL] %s, ctrl_pdata->tp_reset_gpio = %d      **********************\n\n", __func__, ctrl_pdata->tp_reset_gpio);
 		    gpio_set_value(ctrl_pdata->tp_reset_gpio, 0);
 		    gpio_free(ctrl_pdata->tp_reset_gpio);
-		  
+
 		    ret = mdss_dsi_panel_reset(pdata, 0);
 		    if (ret) {
 		      pr_warn("%s: Panel reset failed. rc=%d\n", __func__, ret);
 		      ret = 0;
 		    }
-		  
+
 		    if (mdss_dsi_pinctrl_set_state(ctrl_pdata, false))
 		            pr_debug("reset disable: pinctrl not enabled\n");
-		  
+
 		    mdelay(5);
-		  
+
 		    ret = msm_mdss_enable_vreg(
 		            ctrl_pdata->panel_power_data.vreg_config,
 		            ctrl_pdata->panel_power_data.num_vreg, 0);
@@ -656,6 +666,59 @@ static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 		  }
 		  break;
 //SHP OD6 Panel bringup, 20181107
+		//SW4-HL-Display-TC358762_HX8352-BringUp-00+{_20181219
+		case FIH_HX8352_TM_240x400_VIDEO_PANEL:
+			{
+				pr_debug("[HL]%s, %d: FIH_HX8352_TM_240x400_VIDEO_PANEL\n", __func__,  __LINE__);
+
+				//Pull LOW LCM RST Pin
+				ret = mdss_dsi_panel_reset(pdata, 0);
+				if (ret) {
+				  pr_err("%s: Panel reset failed. rc=%d\n", __func__, ret);
+				  ret = 0;
+				}
+				pr_debug("[HL]%s, %d: [LCM RST LOW]\n", __func__,  __LINE__);
+
+				if (mdss_dsi_pinctrl_set_state(ctrl_pdata, false))
+						pr_debug("reset disable: pinctrl not enabled\n");
+
+				mdelay(150);
+
+				//Pull LOW BRG RST Pin
+				pr_debug("\n\n******************** [HL] %s, ctrl_pdata->brg_rst_gpio = %d      **********************\n\n", __func__, ctrl_pdata->brg_rst_gpio);
+				gpio_set_value(ctrl_pdata->brg_rst_gpio, 0);
+				gpio_free(ctrl_pdata->brg_rst_gpio);
+				pr_debug("[HL]%s, %d: [BRG RST LOW]\n", __func__,  __LINE__);
+
+				udelay(5 * 1000);
+
+				//Pull LOW LCM LDO22 for lcm vcc(3.0V) & LDO5 for Bridge IC VDDS(1.8V)
+				ret = msm_mdss_enable_vreg(
+						ctrl_pdata->panel_power_data.vreg_config,
+						ctrl_pdata->panel_power_data.num_vreg, 0);
+				if (ret)
+				  pr_err("%s: failed to disable vregs for %s\n",
+						  __func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
+				pr_debug("[HL]%s, %d: [LCM VCC(3.0V) LOW & BRG VDDS(1.8V) LOW]\n", __func__,  __LINE__);
+
+				udelay(5 * 1000);
+
+				//Pull LOW LCM IOVCC(1.8V) Enable Pin
+				pr_debug("[HL] %s, ctrl_pdata->lcm_iovcc_gpio = %d	**********************\n\n", __func__, ctrl_pdata->lcm_iovcc_gpio);
+				gpio_set_value(ctrl_pdata->lcm_iovcc_gpio, 0);
+				gpio_free(ctrl_pdata->lcm_iovcc_gpio);
+				pr_debug("[HL]%s, %d: [LCM 1P8 EN GPIO LOW]\n", __func__,  __LINE__);
+
+				udelay(5 * 1000);
+
+				//Pull LOW BRG 1P2 EN GPIO
+				pr_debug("\n\n******************** [HL] %s, ctrl_pdata->brg_1p2_en_gpio = %d      **********************\n\n", __func__, ctrl_pdata->brg_1p2_en_gpio);
+				gpio_set_value(ctrl_pdata->brg_1p2_en_gpio, 0);
+				gpio_free(ctrl_pdata->brg_1p2_en_gpio);
+				pr_debug("[HL]%s, %d: [BRG 1P2 EN GPIO LOW]\n", __func__,  __LINE__);
+			}
+			break;
+		//SW4-HL-Display-TC358762_HX8352-BringUp-00+}_20181219
     case FIH_ST7703_TRULY_HD_PLUS_VIDEO_PANEL:
 		default:
 			{
@@ -732,7 +795,7 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 					gpio_set_value(ctrl_pdata->lcm_iovcc_gpio, 1);
 					pr_debug("[HL] %s: gpio_set_value(ctrl_pdata->lcm_iovcc_gpio, 1) **********************\n\n", __func__);
 					pr_debug("[HL]%s, %d: [IOVCC]\n", __func__, __LINE__);
-					
+
 					udelay(10 * 1000);
 					//SW4-HL-Display-EAG_RHD-BringUpLcmDriverIC+}_20180529
 
@@ -758,17 +821,17 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 	              !pdata->panel_info.mipi.lp11_init)
 	      {
 					pr_debug("[HL]%s, %d: Pull RESET Pin here!\n", __func__, __LINE__);
-					
+
 					if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
 					        pr_debug("reset enable: pinctrl not enabled\n");
-					
+
 					pr_debug("[HL]%s, %d: mdss_dsi_panel_reset(pdata, 1) <-- START\n", __func__, __LINE__);
 					ret = mdss_dsi_panel_reset(pdata, 1);
 					pr_debug("[HL]%s, %d: mdss_dsi_panel_reset(pdata, 1) <-- END\n", __func__, __LINE__);
 					if (ret)
 	       	        pr_err("%s: Panel reset failed. rc=%d\n",
 	       	                        __func__, ret);
-					pr_debug("[HL]%s, %d: [RESET]\n", __func__, __LINE__); 
+					pr_debug("[HL]%s, %d: [RESET]\n", __func__, __LINE__);
 	      }
 			}
 			break;
@@ -789,12 +852,12 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 
 					pr_debug("[HL]%s, %d: gpio_set_value((ctrl_pdata->rst_gpio), 1); <-- START\n", __func__, __LINE__);
 					gpio_set_value((ctrl_pdata->rst_gpio), 1);
-					pr_debug("[HL]%s, %d: gpio_set_value((ctrl_pdata->rst_gpio), 1); <-- END\n", __func__, __LINE__);			
-					
+					pr_debug("[HL]%s, %d: gpio_set_value((ctrl_pdata->rst_gpio), 1); <-- END\n", __func__, __LINE__);
+
 					udelay(10 * 1000);
 					udelay(10 * 1000);
 					pr_debug("[HL]%s, %d: Delay 20ms After RESET Pin Pulled LOW\n", __func__, __LINE__);
-					pr_debug("[HL]%s, %d: [RESET]\n", __func__, __LINE__); 
+					pr_debug("[HL]%s, %d: [RESET]\n", __func__, __LINE__);
 				}
 				else	//Doble Tap Options is Off, PULL POWERS
 				{
@@ -809,8 +872,8 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 					}
 					gpio_set_value(ctrl_pdata->lcm_iovcc_gpio, 1);
 					pr_debug("[HL] %s: gpio_set_value(ctrl_pdata->lcm_iovcc_gpio, 1) **********************\n\n", __func__);
-					pr_debug("[HL]%s, %d: [IOVCC]\n", __func__, __LINE__); 
-					
+					pr_debug("[HL]%s, %d: [IOVCC]\n", __func__, __LINE__);
+
 					udelay(10 * 1000);
 					//SW4-HL-Display-EAG_RHD-BringUpLcmDriverIC+}_20180529
 
@@ -823,8 +886,8 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 							__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
 						return ret;
 					}
-					pr_debug("[HL]%s, %d: [AVDD/AVEE]\n", __func__, __LINE__); 
-					
+					pr_debug("[HL]%s, %d: [AVDD/AVEE]\n", __func__, __LINE__);
+
           /*
            * If continuous splash screen feature is enabled, then we need to
            * request all the GPIOs that have already been configured in the
@@ -845,8 +908,8 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
             if (ret)
                     pr_err("%s: Panel reset failed. rc=%d\n",
                                     __func__, ret);
-						pr_debug("[HL]%s, %d: [RESET]\n", __func__, __LINE__); 
-          }					
+						pr_debug("[HL]%s, %d: [RESET]\n", __func__, __LINE__);
+          }
 				}
 			}
 			break;
@@ -873,9 +936,9 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 					gpio_set_value(ctrl_pdata->lcm_iovcc_gpio, 1);
 					pr_debug("[HL] %s: gpio_set_value(ctrl_pdata->lcm_iovcc_gpio, 1) **********************\n\n", __func__);
 					pr_debug("[HL]%s, %d: [IOVCC]\n", __func__, __LINE__);
-	
+
 					udelay(10 * 1000);
-	
+
 					ret = msm_mdss_enable_vreg(
 						ctrl_pdata->panel_power_data.vreg_config,
 						ctrl_pdata->panel_power_data.num_vreg, 1);
@@ -886,7 +949,7 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 						return ret;
 					}
 					pr_debug("[HL]%s, %d: [AVDD/AVEE]\n", __func__, __LINE__);
-					
+
 					/*
 					 * If continuous splash screen feature is enabled, then we need to
 					 * request all the GPIOs that have already been configured in the
@@ -897,10 +960,10 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 					        !pdata->panel_info.mipi.lp11_init)
 					{
 						pr_debug("[HL]%s, %d: Pull RESET Pin here!\n", __func__, __LINE__);
-						
+
 						if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
 						        pr_debug("reset enable: pinctrl not enabled\n");
-						
+
 						pr_debug("[HL]%s, %d: mdss_dsi_panel_reset(pdata, 1) <-- START\n", __func__, __LINE__);
 						ret = mdss_dsi_panel_reset(pdata, 1);
 						pr_debug("[HL]%s, %d: mdss_dsi_panel_reset(pdata, 1) <-- END\n", __func__, __LINE__);
@@ -908,7 +971,7 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 						        pr_err("%s: Panel reset failed. rc=%d\n",
 						                        __func__, ret);
 						pr_debug("[HL]%s, %d: [RESET]\n", __func__, __LINE__);
-					}					
+					}
 				}
 			}
 			break;
@@ -916,7 +979,7 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 		case FIH_ST7703_INX_HD_PLUS_VIDEO_PANEL:
 			{
 				pr_debug("[HL]%s, %d: FIH_ST7703_CTC_HD_PLUS_VIDEO_PANEL OR FIH_ST7703_INX_HD_PLUS_VIDEO_PANEL\n", __func__, __LINE__);
-				
+
 				//******************************************
 				// START of VDDIO(1.8V)
 				//******************************************
@@ -936,10 +999,10 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 				//******************************************
 				// END of Reset Pin Sequence
 				//******************************************
-				
+
 				udelay(10*1000);
 				pr_debug("[HL]%s, %d: [DSI] Delay 10ms AFTER VDDIO PULLED HIGH\n", __func__, __LINE__);
-				
+
 				//******************************************
 				// START of Reset Pin Sequence
 				//******************************************
@@ -964,7 +1027,7 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 				//******************************************
 				// END of Reset Pin Sequence
 				//******************************************
-				
+
 				//******************************************
 				// START of +5.5V/-5.5V Pin Sequence
 				//******************************************
@@ -981,16 +1044,99 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 				//******************************************
 				// END of +5.5V/-5.5V Pin Sequence
 				//******************************************
-				
+
 				udelay(15*1000);
 				pr_debug("[HL]%s, %d: [DSI] Delay 15ms AFTER +5V-5V are PULLED\n", __func__, __LINE__);
 			}
 			break;
+		//SW4-HL-Display-TC358762_HX8352-BringUp-00+{_20181219
+		case FIH_HX8352_TM_240x400_VIDEO_PANEL:
+			{
+				pr_debug("[HL]%s, %d: FIH_HX8352_TM_240x400_VIDEO_PANEL\n", __func__,  __LINE__);
+
+				//Pull HIGH BRG 1P2 EN GPIO
+				pr_debug("[HL] %s, ctrl_pdata->brg_1p2_en_gpio = %d	**********************\n\n", __func__, ctrl_pdata->brg_1p2_en_gpio);
+				if (gpio_request(ctrl_pdata->brg_1p2_en_gpio, "lcm_iovcc")) {
+					pr_err("%s:request brg 1p2 enable gpio failed\n", __func__);
+					//BBOX_LCM_GPIO_FAIL
+					gpio_free(ctrl_pdata->brg_1p2_en_gpio);
+					return -ENODEV;
+				}
+				gpio_set_value(ctrl_pdata->brg_1p2_en_gpio, 1);
+				pr_debug("[HL]%s, %d: [BRG 1P2 EN GPIO  HIGH]\n", __func__,  __LINE__);
+
+				udelay(5 * 1000);
+
+				//Pull HIGH LCM IOVCC(1.8V) Enable Pin
+				pr_debug("[HL] %s, ctrl_pdata->lcm_iovcc_gpio = %d	**********************\n\n", __func__, ctrl_pdata->lcm_iovcc_gpio);
+				if (gpio_request(ctrl_pdata->lcm_iovcc_gpio, "lcm_iovcc")) {
+					pr_err("%s:request lcm iovcc enable gpio failed\n", __func__);
+					//BBOX_LCM_GPIO_FAIL
+					gpio_free(ctrl_pdata->lcm_iovcc_gpio);
+					return -ENODEV;
+				}
+				gpio_set_value(ctrl_pdata->lcm_iovcc_gpio, 1);
+				pr_debug("[HL]%s, %d: [IOVCC HIGH]\n", __func__,  __LINE__);
+
+				udelay(5 * 1000);
+
+				//Pull HIGH LCM LDO22 for lcm vcc(3.0V) & LDO5 for Bridge IC VDDS(1.8V)
+				ret = msm_mdss_enable_vreg(
+					ctrl_pdata->panel_power_data.vreg_config,
+					ctrl_pdata->panel_power_data.num_vreg, 1);
+				pr_debug("[HL]%s, %d: msm_mdss_enable_vreg(1) <-- END\n", __func__,  __LINE__);
+				if (ret) {
+					pr_err("%s: failed to enable vregs for %s\n",
+						__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
+					return ret;
+				}
+				pr_debug("[HL]%s, %d: [LCM VCC(3.0V) HIGH & BRG VDDS(1.8V) HIGH]\n", __func__,  __LINE__);
+
+				udelay(5 * 1000);
+
+				//Pull HIGH BRG RST GPIO
+				pr_debug("[HL] %s, ctrl_pdata->brg_rst_gpio = %d	**********************\n\n", __func__, ctrl_pdata->brg_rst_gpio);
+				if (gpio_request(ctrl_pdata->brg_rst_gpio, "lcm_iovcc")) {
+					pr_err("%s:request brg rst gpio failed\n", __func__);
+					//BBOX_LCM_GPIO_FAIL
+					gpio_free(ctrl_pdata->brg_rst_gpio);
+					return -ENODEV;
+				}
+				gpio_set_value(ctrl_pdata->brg_rst_gpio, 1);
+				pr_debug("[HL]%s, %d: [BRG RST HIGH]\n", __func__,  __LINE__);
+
+				udelay(5 * 1000);
+
+				/*
+				* If continuous splash screen feature is enabled, then we need to
+				* request all the GPIOs that have already been configured in the
+				* bootloader. This needs to be done irresepective of whether
+				* the lp11_init flag is set or not.
+				*/
+				if (pdata->panel_info.cont_splash_enabled ||
+					  !pdata->panel_info.mipi.lp11_init)
+				{
+					pr_debug("[HL]%s, %d: Pull LCM RESET Pin here!\n", __func__,  __LINE__);
+
+					if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
+						pr_debug("reset enable: pinctrl not enabled\n");
+
+					pr_debug("[HL]%s, %d: mdss_dsi_panel_reset(pdata, 1) <-- START\n", __func__,  __LINE__);
+					ret = mdss_dsi_panel_reset(pdata, 1);
+					pr_debug("[HL]%s, %d: mdss_dsi_panel_reset(pdata, 1) <-- END\n", __func__,  __LINE__);
+					if (ret)
+						pr_err("%s: Panel reset failed. rc=%d\n",
+										__func__, ret);
+					pr_debug("[HL]%s, %d: [RESET]\n", __func__,  __LINE__);
+				}
+			}
+			break;
+		//SW4-HL-Display-TC358762_HX8352-BringUp-00+}_20181219
     case FIH_ST7703_TRULY_HD_PLUS_VIDEO_PANEL:
 		default:
 			{
  				pr_debug("[HL]%s, %d: FIH_ST7703_TRULY_HD_PLUS_VIDEO_PANEL OR default\n", __func__, __LINE__);
- 				
+
  				ret = msm_mdss_enable_vreg(
  				        ctrl_pdata->panel_power_data.vreg_config,
  				        ctrl_pdata->panel_power_data.num_vreg, 1);
@@ -1001,7 +1147,7 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
  				        return ret;
  				}
 				pr_debug("[HL]%s, %d: [AVDD/AVEE]\n", __func__, __LINE__);
-				
+
  				/*
  				 * If continuous splash screen feature is enabled, then we need to
  				 * request all the GPIOs that have already been configured in the
@@ -1012,17 +1158,17 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
  				        !pdata->panel_info.mipi.lp11_init)
  				{
 					pr_debug("[HL]%s, %d: Pull RESET Pin here!\n", __func__, __LINE__);
-					
+
 					if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
 					        pr_debug("reset enable: pinctrl not enabled\n");
-					
+
 					pr_debug("[HL]%s, %d: mdss_dsi_panel_reset(pdata, 1) <-- START\n", __func__, __LINE__);
 					ret = mdss_dsi_panel_reset(pdata, 1);
 					pr_debug("[HL]%s, %d: mdss_dsi_panel_reset(pdata, 1) <-- END\n", __func__, __LINE__);
 					if (ret)
 					        pr_err("%s: Panel reset failed. rc=%d\n",
 					                        __func__, ret);
-					pr_debug("[HL]%s, %d: [RESET]\n", __func__, __LINE__); 
+					pr_debug("[HL]%s, %d: [RESET]\n", __func__, __LINE__);
  				}
 			}
 			break;
@@ -1905,6 +2051,454 @@ static void mdss_dsi_validate_debugfs_info(
 	}
 }
 
+//SW4-HL-Display-TC358762_HX8352-BringUp-00+{_20181219
+u32 tc358762_i2c_write_reg(struct i2c_client *client, u16 reg, u32 val)
+{
+	int rc;
+	u8 buf[6];
+
+	if (client == NULL)
+	{
+		pr_err("[LCM][BRIDGE IC-tc358762]%s: invalid i2c client.\n", __func__);
+		return -EINVAL;
+	}
+
+	buf[0] = reg >> 8;
+	buf[1] = reg & 0xFF;
+
+	buf[2] = (val >> 0) & 0xFF;
+	buf[3] = (val >> 8) & 0xFF;
+	buf[4] = (val >> 16) & 0xFF;
+	buf[5] = (val >> 24) & 0xFF;
+
+	rc = i2c_master_send(client, buf, sizeof(buf));
+
+	if (rc >= 0)
+	{
+		pr_debug("[LCM][BRIDGE IC-tc358762]%s: reg=0x%x.   val=0x%08x.\n", __func__, reg, val);
+	}
+	else
+	{
+		pr_err("[LCM][BRIDGE IC-tc358762]%s: fail.reg=0x%08x.\n", __func__, reg);
+	}
+
+	return val;
+}
+
+u32 tc358762_i2c_short_write_reg(struct i2c_client *client, u16 reg, u16 val)
+{
+	int rc;
+	u8 buf[4];
+
+	if (client == NULL) {
+		pr_err("[LCM][BRIDGE IC-tc358762]%s: invalid i2c client.\n", __func__);
+		return -EINVAL;
+	}
+
+	buf[0] = reg >> 8;
+	buf[1] = reg & 0xFF;
+
+	buf[2] = (val >> 0) & 0xFF;
+	buf[3] = (val >> 8) & 0xFF;
+
+	rc = i2c_master_send(client, buf, sizeof(buf));
+
+	if (rc >= 0)
+	{
+		pr_debug("[LCM][BRIDGE IC-tc358762]%s: reg=0x%x.   val=0x%04x.\n", __func__, reg, val);
+	}
+	else
+	{
+		pr_err("[LCM][BRIDGE IC-tc358762]%s: fail.reg=0x%04x.\n", __func__, reg);
+	}
+
+	return val;
+}
+
+u32 tc358762_i2c_one_byte_write_reg(struct i2c_client *client, u16 reg, u8 val)
+{
+	int rc;
+	u8 buf[3];
+
+	if (client == NULL) {
+		pr_err("[LCM][BRIDGE IC-tc358762]%s: invalid i2c client.\n", __func__);
+		return -EINVAL;
+	}
+
+	buf[0] = reg >> 8;
+	buf[1] = reg & 0xFF;
+
+	buf[2] = (val >> 0) & 0xFF;
+
+	rc = i2c_master_send(client, buf, sizeof(buf));
+
+	if (rc >= 0)
+	{
+		pr_debug("[LCM][BRIDGE IC-tc358762]%s: reg=0x%x.   val=0x%02x.\n", __func__, reg, val);
+	}
+	else
+	{
+		pr_err("[LCM][BRIDGE IC-tc358762]%s: fail.reg=0x%02x.\n", __func__, reg);
+	}
+
+	return val;
+}
+
+u32 tc358762_i2c_read_reg(struct i2c_client *client, u16 reg)
+{
+	int rc;
+	u32 val = 0;
+	u8 buf[6];
+
+	if (client == NULL)
+	{
+		pr_err("[LCM][BRIDGE IC-tc358762]%s: invalid i2c client.\n", __func__);
+		return -EINVAL;
+	}
+
+	buf[0] = reg >> 8;
+	buf[1] = reg & 0xFF;
+
+	rc = i2c_master_send(client, buf, sizeof(reg));
+	rc = i2c_master_recv(client, buf, 4);
+
+	if (rc >= 0)
+	{
+		val = buf[0] + (buf[1] << 8) + (buf[2] << 16) + (buf[3] << 24);
+		pr_debug("[LCM][BRIDGE IC-tc358762]%s: reg=0x%x.   val=0x%x.\n", __func__, reg, val);
+	}
+	else
+	{
+		pr_err("[LCM][BRIDGE IC-tc358762]%s: fail.reg=0x%x.\n", __func__, reg);
+	}
+
+	return val;
+}
+
+u32 tc358762_i2c_one_byte_read_reg(struct i2c_client *client, u16 reg)
+{
+	int rc;
+	u32 val = 0;
+	u8 buf[6];
+
+	if (client == NULL) {
+		pr_err("[LCM][BRIDGE IC-tc358762]%s: invalid i2c client.\n", __func__);
+		return -EINVAL;
+	}
+
+	buf[0] = reg >> 8;
+	buf[1] = reg & 0xFF;
+
+	rc = i2c_master_send(client, buf, sizeof(reg));
+	rc = i2c_master_recv(client, buf, 4);
+
+	if (rc >= 0)
+	{
+		val = buf[0];
+		pr_debug("[LCM][BRIDGE IC-tc358762]%s: reg=0x%x.   val=0x%x.\n", __func__, reg, val);
+	}
+	else
+	{
+		pr_err("[LCM][BRIDGE IC-tc358762]%s: fail.reg=0x%x.\n", __func__, reg);
+	}
+
+	return val;
+}
+
+static bool tc358762_bridge_read_status(void)
+{
+	int val = 0;
+	int retry = 0;
+	int retry_limit = 5;
+	int retry_delay = 5; //ms
+	int reg = 0x04A0;	//Bridge IC Chip ID Register
+	int reg_def_val = 0x6200;	//Bridge IC Chip ID
+
+	do
+	{
+		val = tc358762_i2c_read_reg(toshiba_bridge_client, reg);
+		pr_debug("[LCM][BRIDGE IC-tc358762]%s: (reg, val) = (0x%04x, 0x%04x)\n", __func__, reg, val);
+
+		mdelay(retry_delay);
+
+		retry++;
+	}
+	while ((val != reg_def_val) && (retry < retry_limit));
+
+	pr_debug("[LCM][BRIDGE IC-tc358762]%s: (reg, val) = (0x%04x, 0x%04x)\n", __func__, reg, val);
+
+	if (val == reg_def_val)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+static bool hx8352_lcm_read_status(void)
+{
+	int val = 0;
+	int retry = 0;
+	int retry_limit = 5;
+	int retry_delay = 5; //ms
+	int reg = 0xE1;
+	int reg_def_val = 0x0E;
+
+	do
+	{
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0440, 0x00000110);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0410, 0x00000007);
+		tc358762_i2c_one_byte_write_reg(toshiba_bridge_client, 0x0504, reg);
+		val = tc358762_i2c_one_byte_read_reg(toshiba_bridge_client, 0x0268);
+		pr_debug("[LCM][HX8352]%s, %d: (reg, val)=(0x%02x, 0x%02x)\n", __func__, __LINE__, reg, val);
+
+		mdelay(retry_delay);
+
+		retry++;
+	}
+	while ((val != reg_def_val) && (retry < retry_limit));
+
+	pr_debug("[LCM][HX8352]%s, %d: (reg, val)=(0x%02x, 0x%02x)\n", __func__, __LINE__, reg, val);
+
+	if (val == reg_def_val)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+static int tc358762_bridge_init_sequence(int force_clk_lane_hs)
+{
+	pr_debug("[HL]%s, %d: <-- START\n", __func__, __LINE__);
+
+	//**********************************************************/
+	// Bridge IC Initial Code -- START
+	//**********************************************************/
+	if (!force_clk_lane_hs)	//force_clk_lane_hs = 0, use External Crystal Clock
+	{
+		pr_debug("[HL]%s, %d: force_clk_lane_hs = 0, use External Crystal Clock\n", __func__,  __LINE__);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x047C, 0x00000000);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0210, 0x00000007);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0164, 0x00000007);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0168, 0x00000007);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0144, 0x00000000);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0148, 0x00000000);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0114, 0x00000004);
+
+		/* SPI/DBI-C Master Setting */
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0450, 0x00000001);
+
+		/* GPIO Setting */
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0484, 0x00000000);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0480, 0x0000001F);
+
+		/* DBI-B */
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0400, 0x00000002);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0410, 0x00000007);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0418, 0x00000022);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0440, 0x00000110);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0464, 0x00000205);
+
+		/* DSI Start */
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0104, 0x00000001);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0204, 0x00000001);
+
+		/* PLL Frequency Change */
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0468, 0x00000004);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0470, 0x50300000);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x047C, 0x00000080);
+
+		mdelay(2);
+
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x047C, 0x00000000);
+
+		/* DSI/DBI-B color depth setting */
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0414, 0x00000005);
+
+		mdelay(2);
+	}
+	else	//force_clk_lane_hs = 1, use Internal MIPI DSI Clock
+	{
+		pr_debug("[HL]%s, %d: force_clk_lane_hs = 1, use Internal MIPI DSI Clock\n", __func__,  __LINE__);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x047C, 0x00000000);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0210, 0x00000007);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0164, 0x00000001);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0168, 0x00000001);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0144, 0x00000000);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0148, 0x00000000);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0114, 0x00000002);
+
+		/* SPI/DBI-C Master Setting */
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0450, 0x00000001);
+
+		/* GPIO Setting */
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0484, 0x00000000);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0480, 0x0000001F);
+
+		/* DBI-B */
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0400, 0x00000000);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0410, 0x00000007);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0418, 0x00000022);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0440, 0x00000110);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0464, 0x00000105);
+
+		/* DSI Start */
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0104, 0x00000001);
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0204, 0x00000001);
+
+		/* PLL Frequency Change */
+
+		/* DSI/DBI-B color depth setting */
+		tc358762_i2c_write_reg(toshiba_bridge_client, 0x0414, 0x00000005);
+
+		mdelay(2);
+	}
+	//**********************************************************/
+	// Bridge IC Initial Code -- END
+	//**********************************************************/
+
+	//Check Bridge IC Status
+	if (tc358762_bridge_read_status())
+	{
+		pr_err("[BRG][TC358762]%s, %d: Bridge IC is initialized success!\n", __func__, __LINE__);
+	}
+	else
+	{
+		pr_err("[BRG][TC358762]%s, %d: Bridge IC is initialized fail!\n", __func__, __LINE__);
+	}
+
+	/**********************************************************/
+	// LCM Driver IC Initial Code -- START
+	/**********************************************************/
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x15E2);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x00E5);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x00E7);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x5EE8);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x08EC);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x47ED);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x48EF);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x20EE);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0EE1);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x7724);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x7025);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0129);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x032B);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x1E1B);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x021A);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x15E2);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0119);
+	mdelay(5);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x8C1F);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x841F);
+	mdelay(10);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x941F);
+	mdelay(10);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0xD41F);
+	mdelay(5);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0440);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x2941);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x2542);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x3543);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x2D44);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x3145);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x1E46);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x7B47);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0A48);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0649);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x084A);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0F4B);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x144C);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0E50);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x1251);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0A52);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x1A53);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x1654);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x3B55);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0456);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x6157);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0B58);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x1059);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x175A);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x195B);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x155C);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x335D);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x5517);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0b16);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x2028);
+	mdelay(40);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x3828);
+	mdelay(40);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x3C28);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0002);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0003);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0004);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0xEF05);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0006);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0007);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0108);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x8f09);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x012F);
+	//START of reading OTP
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0xAA87);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0439);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x203A);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x003A);
+	tc358762_i2c_one_byte_write_reg(toshiba_bridge_client, 0x0500, 0x3B);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x5587);
+	//END of reading OTP
+
+	//START of Fix TP Noise
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x8818);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x221D);
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x111E);
+	//END of Fix TP Noise
+
+	tc358762_i2c_short_write_reg(toshiba_bridge_client, 0x0500, 0x0860);
+	tc358762_i2c_one_byte_write_reg(toshiba_bridge_client, 0x0500, 0x22);
+	mdelay(10);
+	/**********************************************************/
+	// LCM Driver IC Initial Code -- START
+	/**********************************************************/
+
+	//Check LCM IC Status
+	if (hx8352_lcm_read_status())
+	{
+		pr_err("[LCM][HX8352]%s, %d: Panel is initialized success!\n", __func__, __LINE__);
+		return 0;
+	}
+	else
+	{
+		pr_err("[LCM][HX8352]%s, %d: Panel is initialized fail!\n", __func__, __LINE__);
+		return -1;
+	}
+
+	pr_debug("[HL]%s, %d: <-- END\n", __func__, __LINE__);
+
+	return 0;
+}
+//SW4-HL-Display-TC358762_HX8352-BringUp-00+}_20181219
+
+int fih_lms_lcm_read_status(void)
+{
+	//if (tc358762_bridge_read_status() && hx8352_lcm_read_status())
+	//if (tc358762_bridge_read_status())
+	if (hx8352_lcm_read_status())
+	{
+		pr_err("%s, %d: Read back value from lcm ic is correct\n", __func__, __LINE__);
+		return 1;
+	}
+	else
+	{
+		pr_err("%s, %d: Read back value from lcm ic is incorrect\n", __func__, __LINE__);
+		return 0;
+	}
+}
+
 static int mdss_dsi_off(struct mdss_panel_data *pdata, int power_state)
 {
 	int ret = 0;
@@ -2163,8 +2757,8 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 	mdss_dsi_clk_ctrl(ctrl_pdata, ctrl_pdata->dsi_clk_handle,
 			  MDSS_DSI_LINK_CLK, MDSS_DSI_CLK_ON);
 	mdss_dsi_sw_reset(ctrl_pdata, true);
-	pr_debug("[HL]%s, %d: [MIPI LP11]\n", __func__, __LINE__);  
-	
+	pr_debug("[HL]%s, %d: [MIPI LP11]\n", __func__, __LINE__);
+
 	/*
 	 * Issue hardware reset line after enabling the DSI clocks and data
 	 * data lanes for LP11 init
@@ -2192,9 +2786,9 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 						pr_debug("[HL]%s, %d: [RESET]\n", __func__, __LINE__);
 					}
 				}
-				break;          
+				break;
 			case FIH_NT36525_HD_PLUS_INNO_VIDEO_PANEL:
-				{     
+				{
 					pr_debug("[HL]%s, %d: FIH_NT36525_HD_PLUS_INNO_VIDEO_PANEL\n", __func__, __LINE__);
 					pr_debug("[HL]%s, %d: DO NOTHING!!!\n", __func__, __LINE__);
 				}
@@ -2214,7 +2808,7 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 						if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
 							pr_debug("reset enable: pinctrl not enabled\n");
 						mdss_dsi_panel_reset(pdata, 1);
-						pr_debug("[HL]%s, %d: [RESET]\n", __func__, __LINE__);						
+						pr_debug("[HL]%s, %d: [RESET]\n", __func__, __LINE__);
 					}
 				}
 				break;
@@ -2229,7 +2823,7 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 			default:
 				{
 					pr_debug("[HL]%s, %d: FIH_ST7703_TRULY_HD_PLUS_VIDEO_PANEL OR default\n", __func__, __LINE__);
-					
+
 					if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
 					        pr_debug("reset enable: pinctrl not enabled\n");
 					mdss_dsi_panel_reset(pdata, 1);
@@ -2251,6 +2845,27 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 		MIPI_OUTP((ctrl_pdata->ctrl_base) + 0xac, tmp);
 		wmb(); /* ensure write is finished before progressing */
 	}
+
+	//SW4-HL-Display-TC358762_HX8352-BringUp-00+{_20181219
+	switch (ctrl_pdata->panel_data.panel_info.panel_id)
+	{
+		case FIH_HX8352_TM_240x400_VIDEO_PANEL:
+			{
+				pr_debug("[HL]%s, %d: FIH_HX8352_TM_240x400_VIDEO_PANEL\n", __func__,  __LINE__);
+
+				//if((FIH_HWID_PRJ) == FIH_PRJ_JW3 && fih_hwid_fetch(FIH_HWID_REV) >= FIH_REV_EVT1) {
+				/* Initial brfih_hwid_fetchidge IC and panel controller */
+				tc358762_bridge_init_sequence(mipi->force_clk_lane_hs);
+
+				/* Send 0x29 to turn on display */
+				//truly_st7789s_panel_on_cmd();
+				//}
+			}
+			break;
+		default:
+			break;
+	}
+	//SW4-HL-Display-TC358762_HX8352-BringUp-00+}_20181219
 
 	if (pdata->panel_info.type == MIPI_CMD_PANEL)
 		mdss_dsi_clk_ctrl(ctrl_pdata, ctrl_pdata->dsi_clk_handle,
@@ -3469,7 +4084,7 @@ static int fih_set_feature(void)
 {
 	int rc = 0;
 
-	pr_err("\n\n*** [HL] %s +++ ***\n\n", __func__);
+	pr_debug("\n\n*** [HL] %s +++ ***\n\n", __func__);
 
 	if (!SendCEBeforeInit && CE_enable)
 	{
@@ -5164,6 +5779,20 @@ static int mdss_dsi_parse_gpio_params(struct platform_device *ctrl_pdev,
 						__func__, __LINE__);
 	//SW4-HL-Display-OD6-BringUpLcmDriverIC+}_20181107
 
+	//SW4-HL-Display-TC358762_HX8352-BringUp-00+{_20181219
+	ctrl_pdata->brg_1p2_en_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
+			 "fih,brg-1p2-en-gpio", 0);
+	if (!gpio_is_valid(ctrl_pdata->brg_1p2_en_gpio))
+		pr_err("%s:%d, BRG 1P2 EN gpio not specified\n",
+						__func__,  __LINE__);
+
+	ctrl_pdata->brg_rst_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
+			 "fih,brg-rst-gpio", 0);
+	if (!gpio_is_valid(ctrl_pdata->brg_rst_gpio))
+		pr_err("%s:%d, BRG RST gpio not specified\n",
+						__func__,  __LINE__);
+	//SW4-HL-Display-TC358762_HX8352-BringUp-00+}_20181219
+
 	if (pinfo->mode_gpio_state != MODE_GPIO_NOT_VALID) {
 
 		ctrl_pdata->mode_gpio = of_get_named_gpio(
@@ -5424,9 +6053,183 @@ static int mdss_dsi_ctrl_register_driver(void)
 	return platform_driver_register(&mdss_dsi_ctrl_driver);
 }
 
+//SW4-HL-Display-TC358762_HX8352-BringUp-00+{_20181219
+struct tc358762_platform_data {
+	unsigned long irqflags;
+//	bool	i2c_pull_up;
+//	bool	digital_pwr_regulator;
+	//int bridge_reset_gpio;
+//	u32 reset_gpio_flags;
+	//int pan_reset_gpio;
+	//int pan_vcc_en_gpio;
+//	int irq_gpio;
+//	u32 irq_gpio_flags;
+
+};
+
+#if 0
+static int tc358762_parse_dt(struct device *dev, struct tc358762_platform_data *pdata)
+{
+	//int rc;
+	struct device_node *np = dev->of_node;//*temp, *np = dev->of_node;
+	//struct property *prop;
+	//u32 temp_val;
+
+	#if 0
+	/* reset, gpio info */
+	pdata->bridge_reset_gpio = of_get_named_gpio(np, "bridge,reset-gpio", 0);
+	//if (!gpio_is_valid(pdata->bridge_reset_gpio)) {
+	if (!gpio_is_valid(pdata->bridge_reset_gpio))
+		pr_err("%s:%d, bridge_reset gpio not specified\n",
+						__func__,  __LINE__);
+
+	} else {
+		rc = gpio_request(pdata->bridge_reset_gpio, "bridge_reset");
+		if (rc) {
+			pr_err("request bridge_reset gpio failed, rc=%d\n",
+			       rc);
+			gpio_free(pdata->bridge_reset_gpio);
+			return -ENODEV;
+		}
+		//gpio_direction_output(pdata->bridge_reset_gpio, 0);
+	}
+
+	pdata->pan_reset_gpio = of_get_named_gpio(np, "pan,reset-gpio", 0);
+	if (!gpio_is_valid(pdata->pan_reset_gpio))
+	{
+		pr_err("%s:%d, pan_reset gpio not specified\n",
+						__func__,  __LINE__);
+	}
+	else
+	{
+		rc = gpio_request(pdata->pan_reset_gpio, "pan_reset");
+		if (rc)
+		{
+			pr_err("request pan_reset gpio failed, rc=%d\n",
+			       rc);
+			gpio_free(pdata->pan_reset_gpio);
+			return -ENODEV;
+		}
+		//gpio_direction_output(pdata->pan_reset_gpio, 0);
+	}
+
+	pdata->pan_vcc_en_gpio = of_get_named_gpio(np, "pan,vcc-en-gpio", 0);
+	if (!gpio_is_valid(pdata->pan_vcc_en_gpio))
+	{
+		pr_err("%s:%d, pan_vcc_en gpio not specified\n",
+						__func__,  __LINE__);
+	}
+	else
+	{
+		rc = gpio_request(pdata->pan_vcc_en_gpio, "pan_vcc_en");
+		if (rc) {
+			pr_err("request pan_vcc_en gpio failed, rc=%d\n",
+			       rc);
+			gpio_free(pdata->pan_vcc_en_gpio);
+			return -ENODEV;
+		}
+		//gpio_direction_output(pdata->pan_vcc_en_gpio, 0);
+	}
+	#endif
+
+	return 0;
+}
+#endif
+
+static int tc358762_i2c_slave_probe(struct i2c_client *client,
+					 const struct i2c_device_id *id)
+{
+	static const u32 i2c_funcs = I2C_FUNC_I2C;
+	struct tc358762_platform_data *pdata;
+	//int error;
+	pr_err("%s:++++++++++++++++++++++++++++++++++\n", __func__);
+
+	if (client->dev.of_node)
+	{
+		pdata = devm_kzalloc(&client->dev,
+			sizeof(struct tc358762_platform_data), GFP_KERNEL);
+		if (!pdata)
+		{
+			pr_err("%s.Failed to allocate memory\n", __func__);
+			return -ENOMEM;
+		}
+
+		//error = tc358762_parse_dt(&client->dev, pdata);
+		//if (error)
+		//	return error;
+	}
+	else
+	{
+		pr_err("%s.No device tree\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!i2c_check_functionality(client->adapter, i2c_funcs))
+	{
+		pr_info("%s.i2c_check_functionality failed.\n", __func__);
+		return -ENOSYS;
+	}
+	else
+	{
+		pr_info("%s.i2c_check_functionality OK.\n", __func__);
+	}
+
+	toshiba_bridge_client = client;
+
+	//bridge_resx = pdata->bridge_reset_gpio;
+	//boost_18v_en = pdata->pan_vcc_en_gpio;
+	//lcd_reset_n = pdata->pan_reset_gpio;
+
+	//pr_info("%s. toshiba tc358762 bridge_resx=%d.\n", __func__, bridge_resx);//Aaron, test debug
+
+	return 0;
+}
+
+static int tc358762_i2c_slave_remove(struct i2c_client *client)
+{
+	toshiba_bridge_client = NULL;
+
+	return 0;
+}
+
+static const struct i2c_device_id tc358762_i2c_id[] = {
+	{"tc358762-i2c", 0},
+	{}
+};
+MODULE_DEVICE_TABLE(i2c, tc358762_i2c_id);
+
+#ifdef CONFIG_OF
+static struct of_device_id tc358762_match_table[] = {
+	{ .compatible = "toshiba,tc358762",},
+	{ },
+};
+#else
+#define tc358762_match_table NULL
+#endif
+
+static struct i2c_driver tc358762_i2c_slave_driver = {
+	.driver = {
+		.name	= "tc358762-i2c",
+		.owner	= THIS_MODULE,
+		.of_match_table = tc358762_match_table,
+	},
+	.probe		= tc358762_i2c_slave_probe,
+	.remove		= tc358762_i2c_slave_remove,
+	.id_table	= tc358762_i2c_id,
+};
+//SW4-HL-Display-TC358762_HX8352-BringUp-00+}_20181219
+
 static int __init mdss_dsi_ctrl_driver_init(void)
 {
 	int ret;
+
+	//SW4-HL-Display-TC358762_HX8352-BringUp-00+{_20181219
+	//if(fih_hwid_fetch(FIH_HWID_PRJ) == FIH_PRJ_JW3 && fih_hwid_fetch(FIH_HWID_REV) >= FIH_REV_EVT1)
+	if (strstr(saved_command_line, "androidboot.device=LMS") != NULL)
+	{
+		i2c_add_driver(&tc358762_i2c_slave_driver);
+	}
+	//SW4-HL-Display-TC358762_HX8352-BringUp-00+}_20181219
 
 	ret = mdss_dsi_ctrl_register_driver();
 	if (ret) {

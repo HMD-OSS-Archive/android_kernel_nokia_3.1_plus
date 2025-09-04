@@ -624,6 +624,10 @@ static void ulpi_init(struct msm_otg *motg)
 		ulpi_write(&motg->phy, seq[0], seq[1]);
 		seq += 2;
 	}
+	pr_info("%s() reg=0x80 val=0x%x\n", __func__, ulpi_read(&motg->phy, 0x80));
+	pr_info("%s() reg=0x81 val=0x%x\n", __func__, ulpi_read(&motg->phy, 0x81));
+	pr_info("%s() reg=0x82 val=0x%x\n", __func__, ulpi_read(&motg->phy, 0x82));
+	pr_info("%s() reg=0x83 val=0x%x\n", __func__, ulpi_read(&motg->phy, 0x83));
 }
 
 static int msm_otg_phy_clk_reset(struct msm_otg *motg)
@@ -1903,14 +1907,14 @@ static void msm_otg_notify_charger(struct msm_otg *motg, unsigned int mA)
 	if (g && g->is_a_peripheral)
 		return;
 
-	dev_dbg(motg->phy.dev, "Requested curr from USB = %u\n", mA);
+	dev_info(motg->phy.dev, "Requested curr from USB = %u\n", mA);
 
 	psy_type = get_psy_type(motg);
 	if (psy_type == -ENODEV)
 		return;
 
 	if (msm_otg_notify_chg_type(motg))
-		dev_dbg(motg->phy.dev, "Failed notifying %d charger type to PMIC\n",
+		dev_info(motg->phy.dev, "Failed notifying %d charger type to PMIC\n",
 							motg->chg_type);
 
 	psy_type = get_psy_type(motg);
@@ -1934,7 +1938,7 @@ static void msm_otg_notify_charger(struct msm_otg *motg, unsigned int mA)
 set_prop:
 	if (power_supply_set_property(psy, POWER_SUPPLY_PROP_SDP_CURRENT_MAX,
 								&pval)) {
-		dev_dbg(motg->phy.dev, "power supply error when setting property\n");
+		dev_info(motg->phy.dev, "power supply error when setting property\n");
 		return;
 	}
 
@@ -2727,8 +2731,15 @@ static void msm_otg_init_sm(struct msm_otg *motg)
 			else
 				clear_bit(B_SESS_VLD, &motg->inputs);
 		} else if (pdata->otg_control == OTG_USER_CONTROL) {
+			//set_bit(ID, &motg->inputs);
+			//set_bit(B_SESS_VLD, &motg->inputs);
+			if (pdata->default_mode == USB_PERIPHERAL) {
 			set_bit(ID, &motg->inputs);
 			set_bit(B_SESS_VLD, &motg->inputs);
+			} else {
+				set_bit(ID, &motg->inputs);
+				clear_bit(B_SESS_VLD, &motg->inputs);
+			}
 		}
 		break;
 	default:
@@ -3149,11 +3160,11 @@ static ssize_t msm_otg_mode_write(struct file *file, const char __user *ubuf,
 		goto out;
 	}
 
-	if (!strcmp(buf, "host")) {
+	if (!strncmp(buf, "host", 4)) {
 		req_mode = USB_HOST;
-	} else if (!strcmp(buf, "peripheral")) {
+	} else if (!strncmp(buf, "peripheral", 10)) {
 		req_mode = USB_PERIPHERAL;
-	} else if (!strcmp(buf, "none")) {
+	} else if (!strncmp(buf, "none", 4)) {
 		req_mode = USB_NONE;
 	} else {
 		status = -EINVAL;
@@ -4323,7 +4334,7 @@ static int msm_otg_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&motg->sdp_check, check_for_sdp_connection);
 	INIT_WORK(&motg->notify_charger_work, msm_otg_notify_charger_work);
 	INIT_WORK(&motg->extcon_register_work, msm_otg_extcon_register_work);
-	motg->otg_wq = alloc_ordered_workqueue("k_otg", 0);
+	motg->otg_wq = alloc_ordered_workqueue("k_otg", WQ_FREEZABLE);
 	if (!motg->otg_wq) {
 		pr_err("%s: Unable to create workqueue otg_wq\n",
 			__func__);
@@ -4484,12 +4495,13 @@ static int msm_otg_probe(struct platform_device *pdev)
 	if (ret)
 		dev_dbg(&pdev->dev, "mode debugfs file is not available\n");
 
-	if (motg->pdata->otg_control == OTG_PMIC_CONTROL &&
+	 if ((motg->pdata->otg_control == OTG_PMIC_CONTROL || motg->pdata->otg_control == OTG_USER_CONTROL) &&
 			(!(motg->pdata->mode == USB_OTG) ||
 			 motg->pdata->pmic_id_irq || motg->ext_id_irq ||
-								!motg->phy_irq))
+		!motg->phy_irq)) {
+			dev_dbg(phy->dev, "LPM settings = %lu flags = %lu\n", motg->caps, motg->lpm_flags);
 		motg->caps = ALLOW_PHY_POWER_COLLAPSE | ALLOW_PHY_RETENTION;
-
+		}
 	if (motg->pdata->otg_control == OTG_PHY_CONTROL || motg->phy_irq ||
 				motg->pdata->enable_phy_id_pullup)
 		motg->caps = ALLOW_PHY_RETENTION | ALLOW_PHY_REGULATORS_LPM;
@@ -4757,7 +4769,7 @@ static int msm_otg_runtime_suspend(struct device *dev)
 {
 	struct msm_otg *motg = dev_get_drvdata(dev);
 
-	dev_dbg(dev, "OTG runtime suspend\n");
+	dev_info(dev, "OTG runtime suspend\n");
 	msm_otg_dbg_log_event(&motg->phy, "RUNTIME SUSPEND",
 			get_pm_runtime_counter(dev), 0);
 	return msm_otg_suspend(motg);
@@ -4767,7 +4779,7 @@ static int msm_otg_runtime_resume(struct device *dev)
 {
 	struct msm_otg *motg = dev_get_drvdata(dev);
 
-	dev_dbg(dev, "OTG runtime resume\n");
+	dev_info(dev, "OTG runtime resume\n");
 	msm_otg_dbg_log_event(&motg->phy, "RUNTIME RESUME",
 			get_pm_runtime_counter(dev), 0);
 

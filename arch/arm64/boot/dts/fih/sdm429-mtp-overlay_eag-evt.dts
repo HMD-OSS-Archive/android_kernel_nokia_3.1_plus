@@ -26,3 +26,7 @@
 	qcom,board-id = <8 0>;
   fih,hw-id = <1 1 2>;
 };
+
+&pmi632_low_soc {
+	temperature = <5>;
+};

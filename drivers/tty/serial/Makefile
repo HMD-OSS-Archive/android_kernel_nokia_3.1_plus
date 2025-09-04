@@ -99,3 +99,7 @@ obj-$(CONFIG_SERIAL_MPS2_UART)	+= mps2-uart.o
 # GPIOLIB helpers for modem control lines
 obj-$(CONFIG_SERIAL_MCTRL_GPIO)	+= serial_mctrl_gpio.o
 obj-$(CONFIG_SERIAL_MSM_SMD)	+= msm_smd_tty.o
+
+#GaryTCShih
+obj-y				+= fih_nrfap2/
+#obj-$(CONFIG_ANT_NRF24AP2)	+= fih_nrfap2/

@@ -32,6 +32,7 @@
 
 #define QG_INT_RT_STS_REG			0x10
 #define FIFO_UPDATE_DONE_RT_STS_BIT		BIT(3)
+#define BATTERY_EMPTY_INT_RT_STS_BIT		BIT(2)
 #define VBAT_LOW_INT_RT_STS_BIT			BIT(1)
 #define BATTERY_MISSING_INT_RT_STS_BIT		BIT(0)
 
@@ -122,6 +123,7 @@
 #define QG_SDAM_MAX_OFFSET			0xA4
 
 /* Below offset is used by PBS */
+#define QG_SDAM_SEQ_OFFSET			0xBB /* 1-byte 0xBB */
 #define QG_SDAM_PON_OCV_OFFSET			0xBC /* 2-byte 0xBC-0xBD */
 
 #endif

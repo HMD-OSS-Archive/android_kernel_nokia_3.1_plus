@@ -1213,10 +1213,14 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			return -ENODEV;
 		}
 		info->flags |= FBINFO_MISC_USEREVENT;
+		pr_debug("[HL]%s, %d: fb_blank(info, arg) <-- START\n", __func__, __LINE__);
 		ret = fb_blank(info, arg);
+		pr_debug("[HL]%s, %d: fb_blank(info, arg) <-- END\n", __func__, __LINE__);
 		info->flags &= ~FBINFO_MISC_USEREVENT;
 		unlock_fb_info(info);
+		pr_debug("[HL]%s, %d: console_unlock() <-- START\n", __func__, __LINE__);
 		console_unlock();
+		pr_debug("[HL]%s, %d: console_unlock() <-- END\n", __func__, __LINE__);
 		break;
 	default:
 		fb = info->fbops;
