@@ -393,7 +393,7 @@ static void mtk_vdec_pic_info_update(struct mtk_vcodec_ctx *ctx)
 {
 	unsigned int dpbsize = 0;
 	int ret;
-	struct mtk_color_desc color_desc;
+	struct mtk_color_desc color_desc = {.is_hdr = 0};
 
 	if (vdec_if_get_param(ctx,
 						  GET_PARAM_PIC_INFO,
@@ -456,7 +456,7 @@ static void mtk_vdec_worker(struct work_struct *work)
 	struct vb2_v4l2_buffer *dst_vb2_v4l2, *src_vb2_v4l2;
 	unsigned int fourcc = ctx->q_data[MTK_Q_DATA_SRC].fmt->fourcc;
 	unsigned int dpbsize = 0;
-	struct mtk_color_desc color_desc;
+	struct mtk_color_desc color_desc = {.is_hdr = 0};
 
 	mutex_lock(&ctx->worker_lock);
 
@@ -1000,6 +1000,11 @@ static int vidioc_vdec_qbuf(struct file *file, void *priv,
 	}
 
 	vq = v4l2_m2m_get_vq(ctx->m2m_ctx, buf->type);
+	if (buf->index >= vq->num_buffers) {
+		mtk_v4l2_err("[%d] buffer index %d out of range %d",
+			ctx->id, buf->index, vq->num_buffers);
+		return -EINVAL;
+	}
 	vb = vq->bufs[buf->index];
 	vb2_v4l2 = container_of(vb, struct vb2_v4l2_buffer, vb2_buf);
 	mtkbuf = container_of(vb2_v4l2, struct mtk_video_dec_buf, vb);
@@ -1072,6 +1077,11 @@ static int vidioc_vdec_dqbuf(struct file *file, void *priv,
 	if (buf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE &&
 		ret == 0) {
 		vq = v4l2_m2m_get_vq(ctx->m2m_ctx, buf->type);
+		if (buf->index >= vq->num_buffers) {
+			mtk_v4l2_err("[%d] buffer index %d out of range %d",
+				ctx->id, buf->index, vq->num_buffers);
+			return -EINVAL;
+		}
 		vb = vq->bufs[buf->index];
 		vb2_v4l2 = container_of(vb, struct vb2_v4l2_buffer, vb2_buf);
 		mtkbuf = container_of(vb2_v4l2, struct mtk_video_dec_buf, vb);
