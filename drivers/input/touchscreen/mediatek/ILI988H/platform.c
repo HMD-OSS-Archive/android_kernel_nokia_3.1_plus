@@ -918,7 +918,7 @@ static int ilitek_platform_probe(struct i2c_client *client, const struct i2c_dev
 
 	/* Create nodes for users */
 	ilitek_proc_init();
-	/*wangbin add for fih proc interface*/
+	/*add for oem proc interface*/
 	tp_probe_success = 1; //SW4-HL-TouchPanel-AccordingToTPDriverProbeResultToDecideWhetherToCreateVirtualFileOrNot-00+_20151130
     fih_touch_proc_init();
     touch_cb.touch_selftest = fih_ili988h_selftest_open;
@@ -933,7 +933,7 @@ static int ilitek_platform_probe(struct i2c_client *client, const struct i2c_dev
 //    touch_cb.touch_alt_rst = fts_fih_tp_rst;
 //    touch_cb.touch_alt_st_count = read_register_result;
 //    touch_cb.touch_alt_st_enable = fts_fih_tp_enable;
-	/*wangbin add for fih proc interface end*/
+	/*add for oem proc interface end*/
 
 	ipd->isEnableIRQ = true;
 #if (TP_PLATFORM == PT_MTK)
