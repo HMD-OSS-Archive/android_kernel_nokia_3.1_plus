@@ -2724,7 +2724,8 @@ int himax_debug_remove(void)
 	return 0;
 }
 
-/**++++++++oem add proc interface++++++++*/
+/**++++++++fih add proc interface++++++++*/
+
 
 int fih_himax_selftest_open(void){
 	return 0;
@@ -2852,6 +2853,6 @@ int fih_himax_double_tap_write(int enable)
 EXPORT_SYMBOL(double_tap_himax_work_flags);
 
 
-/**++++++++oem add proc interface++++++++*/
+/**++++++++fih add proc interface++++++++*/
 
 

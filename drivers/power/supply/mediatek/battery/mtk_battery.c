@@ -126,7 +126,7 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_MANUFACTURER,
 };
 
-static char *get_battery_id(void); //oem add
+static char *get_battery_id(void); //fih add
 
 /* weak function */
 int __attribute__ ((weak))
@@ -1149,7 +1149,7 @@ static DEVICE_ATTR(UI_SOC, 0664, show_UI_SOC,
 		   store_UI_SOC);
 
 
-/*battery's manufacture ,oem add --s*/
+/*battery's manufacture ,fih add --s*/
 
 enum FIH_BATT_ID {
        FIH_BATT_ID_JIADE_LISHEN = 0,  //51K
@@ -1190,7 +1190,7 @@ static ssize_t show_battery_manufacture(
 	return sprintf(buf, "%s\n", get_battery_id());
 }
 static DEVICE_ATTR(manufacture, 0444, show_battery_manufacture,NULL);
-/*battery's manufacture ,oem add --e*/
+/*battery's manufacture ,fih add --e*/
 
 /* ============================================================ */
 /* Internal function */
@@ -3535,10 +3535,10 @@ static int battery_callback(
 	case CHARGER_NOTIFY_EOC:
 		{
 /* CHARGING FULL */
-//oem add --s
+//fih add --s
 			battery_main.BAT_STATUS = POWER_SUPPLY_STATUS_FULL;
 			battery_update(&battery_main);
-//oem add --e
+//fih add --e
 			notify_fg_chr_full();
 		}
 		break;
