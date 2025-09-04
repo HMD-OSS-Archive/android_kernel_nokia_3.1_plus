@@ -51,6 +51,7 @@
 #if (MD_GENERATION >= 6293)
 #include "hif/ccci_hif_ccif.h"
 #endif
+#include "ccci_aee_handle.h"
 
 #define TAG "mcd"
 
@@ -412,12 +413,6 @@ static int md_cd_start(struct ccci_modem *md)
 	int ret = 0;
 
 	if (md->per_md_data.config.setting & MD_SETTING_FIRST_BOOT) {
-		ret = md_start_platform(md);
-		if (ret) {
-			CCCI_BOOTUP_LOG(md->index, TAG,
-				"power on MD BROM fail %d\n", ret);
-			goto out;
-		}
 		md_cd_io_remap_md_side_register(md);
 		md_sys1_sw_init(md);
 
@@ -430,6 +425,12 @@ static int md_cd_start(struct ccci_modem *md)
 #if (MD_GENERATION >= 6293)
 		md_ccif_ring_buf_init(CCIF_HIF_ID);
 #endif
+		ret = md_start_platform(md);
+		if (ret) {
+			CCCI_BOOTUP_LOG(md->index, TAG,
+				"power on MD BROM fail %d\n", ret);
+			goto out;
+		}
 		md->per_md_data.config.setting &= ~MD_SETTING_FIRST_BOOT;
 	} else
 		ccci_md_clear_smem(md->index, 0);
@@ -579,7 +580,7 @@ static int md_cd_pre_stop(struct ccci_modem *md, unsigned int stop_type)
 					md_cd_dump_debug_register(md);
 					/* cldma_dump_register(CLDMA_HIF_ID);*/
 #if defined(CONFIG_MTK_AEE_FEATURE)
-					aed_md_exception_api(
+					ccci_aed_md_exception_api(
 					mdss_dbg->base_ap_view_vir,
 					mdss_dbg->size, NULL, 0,
 					"After AP send EPOF, MD didn't go to sleep in 4 seconds.",
@@ -612,7 +613,7 @@ static int md_cd_pre_stop(struct ccci_modem *md, unsigned int stop_type)
 			md_cd_dump_debug_register(md);
 			/* cldma_dump_register(CLDMA_HIF_ID);*/
 #if defined(CONFIG_MTK_AEE_FEATURE)
-			aed_md_exception_api(NULL, 0, NULL, 0,
+			ccci_aed_md_exception_api(NULL, 0, NULL, 0,
 				"WDT IRQ occur.", DB_OPT_DEFAULT);
 #endif
 		}

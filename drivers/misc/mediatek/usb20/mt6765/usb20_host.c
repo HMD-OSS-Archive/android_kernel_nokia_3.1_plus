@@ -25,11 +25,13 @@
 #include "usb20.h"
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
+#include <linux/of_gpio.h>
+#include <linux/workqueue.h>
+#include <linux/mutex.h>
+
 #ifdef CONFIG_MTK_USB_TYPEC
 #ifdef CONFIG_TCPC_CLASS
 #include "tcpm.h"
-#include <linux/workqueue.h>
-#include <linux/mutex.h>
 static struct notifier_block otg_nb;
 static struct tcpc_device *otg_tcpc_dev;
 static struct delayed_work register_otg_work;
@@ -81,6 +83,7 @@ static struct charger_device *primary_charger;
 struct device_node		*usb_node;
 static int iddig_eint_num;
 static ktime_t ktime_start, ktime_end;
+static struct delayed_work register_iddig_work;
 
 static struct musb_fifo_cfg fifo_cfg_host[] = {
 { .hw_ep_num = 1, .style = MUSB_FIFO_TX,
@@ -181,55 +184,6 @@ static void _set_vbus(int is_on)
 #endif
 	}
 }
-#ifdef CONFIG_TCPC_CLASS //2018.10.16 add by terry
-static void do_vbus_work(struct work_struct *data)
-{
-	struct mt_usb_work *work =
-		container_of(data, struct mt_usb_work, dwork.work);
-	bool vbus_on = (work->ops ==
-			VBUS_OPS_ON ? true : false);
-
-	_set_vbus(vbus_on);
-	/* free kfree */
-	kfree(work);
-}
-
-static void issue_vbus_work(int ops, int delay)
-{
-	struct mt_usb_work *work;
-
-	if (!mtk_musb) {
-		DBG(0, "mtk_musb = NULL\n");
-		return;
-	}
-	/* create and prepare worker */
-	work = kzalloc(sizeof(struct mt_usb_work), GFP_ATOMIC);
-	if (!work) {
-		DBG(0, "work is NULL, directly return\n");
-		return;
-	}
-	work->ops = ops;
-	INIT_DELAYED_WORK(&work->dwork, do_vbus_work);
-
-	/* issue vbus work */
-	DBG(0, "issue work, ops<%d>, delay<%d>\n", ops, delay);
-
-	queue_delayed_work(mtk_musb->st_wq,
-				&work->dwork, msecs_to_jiffies(delay));
-}
-
-static void mt_usb_vbus_on(int delay)
-{
-	DBG(0, "vbus_on\n");
-	issue_vbus_work(VBUS_OPS_ON, delay);
-}
-
-static void mt_usb_vbus_off(int delay)
-{
-	DBG(0, "vbus_off\n");
-	issue_vbus_work(VBUS_OPS_OFF, delay);
-}
-#endif 
 
 void mt_usb_set_vbus(struct musb *musb, int is_on)
 {
@@ -322,6 +276,54 @@ void mt_usb_host_disconnect(int delay)
 }
 #ifdef CONFIG_MTK_USB_TYPEC
 #ifdef CONFIG_TCPC_CLASS
+static void do_vbus_work(struct work_struct *data)
+{
+	struct mt_usb_work *work =
+		container_of(data, struct mt_usb_work, dwork.work);
+	bool vbus_on = (work->ops ==
+			VBUS_OPS_ON ? true : false);
+
+	_set_vbus(vbus_on);
+	/* free kfree */
+	kfree(work);
+}
+
+static void issue_vbus_work(int ops, int delay)
+{
+	struct mt_usb_work *work;
+
+	if (!mtk_musb) {
+		DBG(0, "mtk_musb = NULL\n");
+		return;
+	}
+	/* create and prepare worker */
+	work = kzalloc(sizeof(struct mt_usb_work), GFP_ATOMIC);
+	if (!work) {
+		DBG(0, "work is NULL, directly return\n");
+		return;
+	}
+	work->ops = ops;
+	INIT_DELAYED_WORK(&work->dwork, do_vbus_work);
+
+	/* issue vbus work */
+	DBG(0, "issue work, ops<%d>, delay<%d>\n", ops, delay);
+
+	queue_delayed_work(mtk_musb->st_wq,
+				&work->dwork, msecs_to_jiffies(delay));
+}
+
+static void mt_usb_vbus_on(int delay)
+{
+	DBG(0, "vbus_on\n");
+	issue_vbus_work(VBUS_OPS_ON, delay);
+}
+
+static void mt_usb_vbus_off(int delay)
+{
+	DBG(0, "vbus_off\n");
+	issue_vbus_work(VBUS_OPS_OFF, delay);
+}
+
 static int otg_tcp_notifier_call(struct notifier_block *nb,
 		unsigned long event, void *data)
 {
@@ -736,15 +738,13 @@ static struct platform_driver otg_iddig_driver = {
 };
 
 
-static int iddig_int_init(void)
+static void iddig_int_init_work(struct work_struct *data)
 {
 	int	ret = 0;
 
 	ret = platform_driver_register(&otg_iddig_driver);
 	if (ret)
 		DBG(0, "ret:%d\n", ret);
-
-	return 0;
 }
 
 void mt_usb_otg_init(struct musb *musb)
@@ -781,7 +781,9 @@ void mt_usb_otg_init(struct musb *musb)
 #endif
 #else
 	DBG(0, "host controlled by IDDIG\n");
-	iddig_int_init();
+	INIT_DELAYED_WORK(&register_iddig_work, iddig_int_init_work);
+	queue_delayed_work(mtk_musb->st_wq, &register_iddig_work,
+					   msecs_to_jiffies(1000));
 	vbus_control = 1;
 #endif
 
@@ -868,7 +870,9 @@ static int set_option(const char *val, const struct kernel_param *kp)
 	switch (local_option) {
 	case 0:
 		DBG(0, "case %d\n", local_option);
-		iddig_int_init();
+		INIT_DELAYED_WORK(&register_iddig_work, iddig_int_init_work);
+		queue_delayed_work(mtk_musb->st_wq,
+				&register_iddig_work, 0);
 		break;
 	case 1:
 		DBG(0, "case %d\n", local_option);

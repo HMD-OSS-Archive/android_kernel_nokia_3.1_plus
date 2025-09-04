@@ -125,7 +125,8 @@ static int pe20_set_mivr(struct charger_manager *pinfo, int uV)
 		charger_dev_is_chip_enabled(pinfo->chg2_dev,
 			&chg2_chip_enabled);
 		if (chg2_chip_enabled) {
-			ret = charger_dev_set_mivr(pinfo->chg2_dev, uV);
+			ret = charger_dev_set_mivr(pinfo->chg2_dev,
+				uV + pinfo->data.slave_mivr_diff);
 			if (ret < 0)
 				pr_info("%s: chg2 failed, ret = %d\n", __func__,
 					ret);
@@ -642,7 +643,8 @@ int mtk_pe20_start_algorithm(struct charger_manager *pinfo)
 				pe20_set_mivr(pinfo, pe20->vbus - 500000);
 			else
 				pe20_leave(pinfo);
-		}
+		} else
+			pe20_set_mivr(pinfo, pe20->vbus - 500000);
 		break;
 	}
 	pes = 2;

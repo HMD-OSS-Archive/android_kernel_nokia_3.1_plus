@@ -124,7 +124,7 @@ static int fl_enable(struct flashlight_dev *fdev, int enable)
 	if (pt_is_low(pt_low_vol, pt_low_bat, pt_over_cur) == 2)
 		if (enable) {
 			enable = 1;
-			/// default:0 needs to make flashlight always working even low power mode.
+			
             //So make it return none-low-power here.
 			pr_info("Failed to enable since pt(%d,%d,%d), pt strict(%d)\n",
 					pt_low_vol, pt_low_bat,
@@ -682,7 +682,7 @@ static long _flashlight_ioctl(
 			flashlight_get_ct_index(fl_arg.ct_id));
 	mutex_unlock(&fl_mutex);
 	if (!fdev) {
-		pr_info("Find no flashlight device\n");
+		pr_info_ratelimited("Find no flashlight device\n");
 		return -EINVAL;
 	}
 
@@ -825,6 +825,8 @@ static long _flashlight_ioctl(
 		mutex_unlock(&fl_mutex);
 		break;
 
+	case FLASH_IOC_GET_DUTY_NUMBER:
+	case FLASH_IOC_GET_DUTY_CURRENT:
 	case FLASH_IOC_GET_HW_FAULT:
 	case FLASH_IOC_GET_HW_FAULT2:
 		if (fdev->ops) {
@@ -833,7 +835,8 @@ static long _flashlight_ioctl(
 			fl_arg.arg = fl_dev_arg.arg;
 			if (copy_to_user((void __user *)arg, (void *)&fl_arg,
 					sizeof(struct flashlight_user_arg))) {
-				pr_info("Failed to copy hw fault to user\n");
+				pr_info("Failed to copy arg to user cmd:%d\n",
+					_IOC_NR(cmd));
 				return -EFAULT;
 			}
 		} else {
@@ -899,6 +902,7 @@ static int flashlight_release(struct inode *inode, struct file *file)
 
 		pr_debug("Release(%d,%d,%d)\n", fdev->dev_id.type,
 				fdev->dev_id.ct, fdev->dev_id.part);
+		fl_enable(fdev, 0);
 		fdev->ops->flashlight_release();
 	}
 	mutex_unlock(&fl_mutex);
@@ -997,6 +1001,11 @@ static ssize_t flashlight_strobe_store(struct device *dev,
 	}
 
 	fl_arg.channel = fdev->dev_id.channel;
+	fl_arg.decouple = fdev->dev_id.decouple;
+
+	pr_info("channel:%d decouple:%d\n",
+			fl_arg.channel, fl_arg.decouple);
+
 	if (fdev->ops) {
 		fdev->ops->flashlight_strobe_store(fl_arg);
 		ret = size;

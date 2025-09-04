@@ -124,34 +124,6 @@ static int mtk_disp_mgr_flush(struct file *a_pstFile, fl_owner_t a_id)
 	return 0;
 }
 
-static int mtk_disp_mgr_mmap(struct file *file, struct vm_area_struct *vma)
-{
-	static const unsigned long addr_min = 0x14000000;
-	static const unsigned long addr_max = 0x14025000;
-	static const unsigned long size = addr_max - addr_min;
-	const unsigned long require_size = vma->vm_end - vma->vm_start;
-	unsigned long pa_start = vma->vm_pgoff << PAGE_SHIFT;
-	unsigned long pa_end = pa_start + require_size;
-
-	DISPDBG("mmap size %ld, vmpg0ff 0x%lx, pastart 0x%lx, paend 0x%lx\n",
-		require_size, vma->vm_pgoff, pa_start, pa_end);
-
-	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
-
-	if (require_size > size || (pa_start < addr_min ||
-		pa_end > addr_max)) {
-		DISPERR("mmap size range over flow!!\n");
-		return -EAGAIN;
-	}
-	if (remap_pfn_range(vma, vma->vm_start, vma->vm_pgoff,
-		(vma->vm_end - vma->vm_start), vma->vm_page_prot)) {
-		DISPERR("display mmap failed!!\n");
-		return -EAGAIN;
-	}
-
-	return 0;
-}
-
 int _session_inited(struct disp_session_config config)
 {
 	return 0;
@@ -719,7 +691,7 @@ static int input_config_preprocess(struct disp_frame_cfg_t *cfg)
 			"set_%s_buffer, conf_layer_num invalid=%d, max_layer_num=%d!\n",
 			disp_session_mode_spy(session_id), cfg->input_layer_num,
 			_get_max_layer(session_id));
-		return 0;
+		return -1;
 	}
 
 	disp_input_get_dirty_roi(cfg);
@@ -1033,7 +1005,10 @@ long _frame_config(unsigned long arg)
 	DISPDBG("%s\n", __func__);
 	frame_cfg->setter = SESSION_USER_HWC;
 
-	input_config_preprocess(frame_cfg);
+	if (input_config_preprocess(frame_cfg) != 0) {
+		kfree(frame_cfg);
+		return -EINVAL;
+	}
 	if (frame_cfg->output_en)
 		output_config_preprocess(frame_cfg);
 
@@ -1391,6 +1366,7 @@ int set_session_mode(struct disp_session_config *config_info, int force)
 
 int _ioctl_set_session_mode(unsigned long arg)
 {
+	int ret = -1;
 	void __user *argp = (void __user *)arg;
 	struct disp_session_config config_info;
 
@@ -1400,7 +1376,15 @@ int _ioctl_set_session_mode(unsigned long arg)
 			__LINE__);
 		return -EFAULT;
 	}
-	return set_session_mode(&config_info, 0);
+
+	if (config_info.mode > DISP_INVALID_SESSION_MODE &&
+		config_info.mode < DISP_SESSION_MODE_NUM) {
+		ret = set_session_mode(&config_info, 0);
+	} else {
+		DISPERR("[FB]: session mode is invalid: %d\n",
+			config_info.mode);
+	}
+	return ret;
 }
 
 const char *_session_ioctl_spy(unsigned int cmd)
@@ -1450,6 +1434,8 @@ const char *_session_ioctl_spy(unsigned int cmd)
 		return "DISP_IOCTL_CCORR_EVENTCTL";
 	case DISP_IOCTL_CCORR_GET_IRQ:
 		return "DISP_IOCTL_CCORR_GET_IRQ";
+	case DISP_IOCTL_SUPPORT_COLOR_TRANSFORM:
+		return "DISP_IOCTL_SUPPORT_COLOR_TRANSFORM";
 	case DISP_IOCTL_SET_PQPARAM:
 		return "DISP_IOCTL_SET_PQPARAM";
 	case DISP_IOCTL_GET_PQPARAM:
@@ -1566,6 +1552,7 @@ long mtk_disp_mgr_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case DISP_IOCTL_SET_CCORR:
 	case DISP_IOCTL_CCORR_EVENTCTL:
 	case DISP_IOCTL_CCORR_GET_IRQ:
+	case DISP_IOCTL_SUPPORT_COLOR_TRANSFORM:
 	case DISP_IOCTL_SET_PQPARAM:
 	case DISP_IOCTL_GET_PQPARAM:
 	case DISP_IOCTL_SET_PQINDEX:
@@ -1776,6 +1763,7 @@ static long mtk_disp_mgr_compat_ioctl(struct file *file, unsigned int cmd,
 	case DISP_IOCTL_SET_CCORR:
 	case DISP_IOCTL_CCORR_EVENTCTL:
 	case DISP_IOCTL_CCORR_GET_IRQ:
+	case DISP_IOCTL_SUPPORT_COLOR_TRANSFORM:
 	case DISP_IOCTL_SET_PQPARAM:
 	case DISP_IOCTL_GET_PQPARAM:
 	case DISP_IOCTL_SET_PQINDEX:
@@ -1830,7 +1818,6 @@ static long mtk_disp_mgr_compat_ioctl(struct file *file, unsigned int cmd,
 
 static const struct file_operations mtk_disp_mgr_fops = {
 	.owner = THIS_MODULE,
-	.mmap = mtk_disp_mgr_mmap,
 	.unlocked_ioctl = mtk_disp_mgr_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = mtk_disp_mgr_compat_ioctl,

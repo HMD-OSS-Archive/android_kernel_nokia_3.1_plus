@@ -19,6 +19,7 @@
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <linux/printk.h>
+#include <linux/arm-smccc.h>
 #include <mt-plat/sync_write.h>
 #include <mt-plat/mtk_io.h>
 #include <mt-plat/mtk_meminfo.h>
@@ -49,6 +50,10 @@ static void (*check_violation_cb)(void);
 static const char *UNKNOWN_MASTER = "unknown";
 static unsigned int show_region;
 
+#ifdef MPU_BYPASS
+static unsigned int init_flag;
+#endif
+
 static unsigned int match_id(
 	unsigned int axi_id, unsigned int tbl_idx, unsigned int port_id)
 {
@@ -76,6 +81,7 @@ static void clear_violation(void)
 {
 	unsigned int mpus, mput, i;
 #ifdef CONFIG_MTK_DEVMPU
+	struct arm_smccc_res smc_res;
 	unsigned int mput_2nd;
 #endif
 
@@ -100,10 +106,10 @@ static void clear_violation(void)
 
 #ifdef CONFIG_MTK_DEVMPU
 	/* clear hyp violation status */
-	mt_reg_sync_writel(0x40000000, EMI_MPUT_2ND);
-
+	arm_smccc_smc(MTK_SIP_KERNEL_DEVMPU_VIO_CLR,
+			0, 0, 0, 0, 0, 0, 0, &smc_res);
 	mput_2nd = readl(IOMEM(EMI_MPUT_2ND));
-	if ((mput_2nd >> 21) & 0x3) {
+	if ((smc_res.a0) || ((mput_2nd >> 21) & 0x3)) {
 		pr_info("[MPU] fail to clear hypervisor violation\n");
 		pr_info("[MPU] EMI_MPT_2ND: %x\n", mput_2nd);
 	}
@@ -173,9 +179,17 @@ static void check_violation(void)
 	else if (wr_oo_vio == 2)
 		pr_info("[MPU] read out-of-range violation\n");
 
+#ifdef MPU_BYPASS
+	if (bypass_violation(mpus, &init_flag)) {
+		clear_violation();
+		clear_md_violation();
+		return;
+	}
+#endif
+
 #ifdef CONFIG_MTK_AEE_FEATURE
 	if (wr_vio != 0) {
-		if (is_md_master(master_id)) {
+		if (is_md_master(master_id, domain_id)) {
 			char str[CCCI_STR_MAX_LEN] = "0";
 
 			snprintf(str, CCCI_STR_MAX_LEN,
@@ -233,6 +247,58 @@ int emi_mpu_set_protection(struct emi_region_info_t *region_info)
 	return 0;
 }
 EXPORT_SYMBOL(emi_mpu_set_protection);
+
+int emi_mpu_set_single_permission(unsigned int region,
+				  unsigned int domain,
+				  unsigned int permission)
+{
+	unsigned int old_apc, new_apc;
+	unsigned long long start, end;
+	int i;
+
+	if (region >= EMI_MPU_REGION_NUM) {
+		pr_debug("[EMI] wrong region %d when calling %s\n",
+		       region, __func__);
+		return -1;
+	}
+
+	if (domain >= EMI_MPU_DOMAIN_NUM) {
+		pr_debug("[EMI] wrong domain %d when calling %s\n",
+		       domain, __func__);
+		return -1;
+	}
+
+	for (i = 0; i < EMI_MPU_DGROUP_NUM; i++) {
+		unsigned int index = domain % 8;
+
+		if ((domain / 8) == i) {
+			old_apc = emi_mpu_smc_read(EMI_MPU_APC(region, i));
+			old_apc &= ~(0x7 << (3 * index));
+			new_apc = old_apc | (permission << (3 * index));
+
+			start = (unsigned long long)emi_mpu_smc_read(
+				EMI_MPU_SA(region)) & 0xffffff;
+
+			end = (unsigned long long)emi_mpu_smc_read(
+				EMI_MPU_EA(region)) & 0xffffff;
+
+			start = (start << EMI_MPU_ALIGN_BITS) + DRAM_OFFSET;
+			start = start >> EMI_MPU_ALIGN_BITS;
+
+			end = (end << EMI_MPU_ALIGN_BITS) + DRAM_OFFSET;
+			end = end >> EMI_MPU_ALIGN_BITS;
+
+			emi_mpu_smc_protect((region << 24) | start,
+					    (i << 24) | end, new_apc);
+		} else {
+			pr_debug("[EMI] don't need to set apc\n");
+			continue;
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(emi_mpu_set_single_permission);
 
 int emi_mpu_clear_protection(struct emi_region_info_t *region_info)
 {
@@ -472,6 +538,10 @@ void mpu_init(struct platform_driver *emi_ctrl, struct platform_device *pdev)
 		check_violation_cb();
 	} else
 		clear_violation();
+
+#ifdef MPU_BYPASS
+	bypass_init(&init_flag);
+#endif
 
 	if (node) {
 		mpu_irq = irq_of_parse_and_map(node, MPU_IRQ_INDEX);

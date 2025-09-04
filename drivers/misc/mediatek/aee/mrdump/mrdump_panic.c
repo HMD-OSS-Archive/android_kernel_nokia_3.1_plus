@@ -23,9 +23,6 @@
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <mrdump.h>
-#ifdef CONFIG_MTK_RAM_CONSOLE
-#include <mt-plat/mtk_ram_console.h>
-#endif
 #include <linux/reboot.h>
 #include "mrdump_panic.h"
 #ifdef CONFIG_MTK_WATCHDOG
@@ -140,7 +137,7 @@ void ipanic_recursive_ke(struct pt_regs *regs, struct pt_regs *excp_regs,
 	}
 	mrdump_mini_ke_cpu_regs(excp_regs);
 	mrdump_mini_per_cpu_regs(cpu, regs, current);
-	dis_D_inner_fL1L2();
+	dis_D_inner_flush_all();
 	aee_exception_reboot();
 }
 EXPORT_SYMBOL(ipanic_recursive_ke);
@@ -168,14 +165,14 @@ int mrdump_common_die(int fiq_step, int reboot_reason, const char *msg,
 		__show_regs(regs);
 		dump_stack();
 		break;
-#ifndef CONFIG_DEBUG_BUGVERBOSE
 	case AEE_REBOOT_MODE_KERNEL_PANIC:
 #ifdef CONFIG_MTK_RAM_CONSOLE
 		aee_rr_rec_exp_type(AEE_EXP_TYPE_KE);
 #endif
+#ifndef CONFIG_DEBUG_BUGVERBOSE
 		dump_stack();
-		break;
 #endif
+		break;
 	case AEE_REBOOT_MODE_HANG_DETECT:
 #ifdef CONFIG_MTK_RAM_CONSOLE
 		aee_rr_rec_exp_type(AEE_EXP_TYPE_HANG_DETECT);
@@ -187,7 +184,7 @@ int mrdump_common_die(int fiq_step, int reboot_reason, const char *msg,
 	}
 
 	mrdump_mini_ke_cpu_regs(regs);
-	dis_D_inner_fL1L2();
+	dis_D_inner_flush_all();
 	console_unlock();
 	aee_exception_reboot();
 	return NOTIFY_DONE;
@@ -295,7 +292,7 @@ inline void aee_print_regs(struct pt_regs *regs)
 	aee_nested_printf("\n");
 }
 
-#define AEE_MAX_EXCP_FRAME	32
+#define AEE_MAX_EXCP_FRAME	64
 inline void aee_print_bt(struct pt_regs *regs)
 {
 	int i;
@@ -306,16 +303,16 @@ inline void aee_print_bt(struct pt_regs *regs)
 
 	bottom = regs->reg_sp;
 	if (!mrdump_virt_addr_valid(bottom)) {
-		aee_nested_printf("invalid sp[%lx]\n", regs);
+		aee_nested_printf("invalid sp[%lx]\n", (unsigned long)regs);
 		return;
 	}
 	high = ALIGN(bottom, THREAD_SIZE);
 	cur_frame.fp = regs->reg_fp;
 	cur_frame.pc = regs->reg_pc;
 	cur_frame.sp = regs->reg_sp;
-	aee_nested_printf("\n[<%p>] %pS\n", (void *)cur_frame.pc,
+	aee_nested_printf("\n[<%px>] %pS\n", (void *)cur_frame.pc,
 			(void *)cur_frame.pc);
-	aee_nested_printf("[<%p>] %pS\n", (void *)regs->reg_lr,
+	aee_nested_printf("[<%px>] %pS\n", (void *)regs->reg_lr,
 			(void *)regs->reg_lr);
 	for (i = 0; i < AEE_MAX_EXCP_FRAME; i++) {
 		fp = cur_frame.fp;
@@ -346,7 +343,7 @@ inline void aee_print_bt(struct pt_regs *regs)
 #endif
 			cur_frame.pc = excp_regs->reg_pc;
 		}
-		aee_nested_printf("[<%p>] %pS\n", (void *)cur_frame.pc,
+		aee_nested_printf("[<%px>] %pS\n", (void *)cur_frame.pc,
 				(void *)cur_frame.pc);
 
 	}
@@ -359,7 +356,8 @@ inline int aee_nested_save_stack(struct pt_regs *regs)
 
 	if (!mrdump_virt_addr_valid(regs->reg_sp))
 		return -1;
-	aee_nested_printf("[%lx %lx]\n", regs->reg_sp, regs->reg_sp + 256);
+	aee_nested_printf("[%lx %lx]\n", (unsigned long)regs->reg_sp,
+			(unsigned long)regs->reg_sp + 256);
 
 	len = aee_dump_stack_top_binary(nested_panic_buf,
 		sizeof(nested_panic_buf), regs->reg_sp, regs->reg_sp + 256);
@@ -393,10 +391,6 @@ int aee_in_nested_panic(void)
 }
 static inline void aee_rec_step_nested_panic(int step)
 {
-}
-__weak int aee_rr_curr_fiq_step(void)
-{
-	return -1;
 }
 #endif
 
@@ -445,7 +439,7 @@ asmlinkage void aee_stop_nested_panic(struct pt_regs *regs)
 	/*nested panic may happens more than once on many/single cpus */
 	if (atomic_read(&nested_panic_time) < 3)
 		aee_nested_printf("\nCPU%dpanic%d@%d-%s\n", cpu,
-				nested_panic_time, prev_fiq_step,
+				nested_panic_time.counter, prev_fiq_step,
 				get_timestamp_string(tsbuf, TS_MAX_LEN));
 	atomic_inc(&nested_panic_time);
 
@@ -469,7 +463,8 @@ asmlinkage void aee_stop_nested_panic(struct pt_regs *regs)
 			 */
 			aee_nested_printf(
 				"invalid thread [%lx], excp_regs [%lx]\n",
-				thread, aee_excp_regs);
+				(unsigned long)thread,
+				(unsigned long)aee_excp_regs);
 			excp_regs = aee_excp_regs;
 		}
 		aee_nested_printf("Nested panic\n");

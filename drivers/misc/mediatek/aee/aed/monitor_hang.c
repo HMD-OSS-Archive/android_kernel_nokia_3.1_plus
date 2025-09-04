@@ -55,10 +55,6 @@
 #include "../mrdump/mrdump_private.h"
 #include <mrdump.h>
 
-static DEFINE_SPINLOCK(pwk_hang_lock);
-static int wdt_kick_status;
-static int hwt_kick_times;
-static int pwk_start_monitor;
 //#define HANG_LOW_MEM
 #ifdef HANG_LOW_MEM
 #define MAX_HANG_INFO_SIZE (512*1024) /* 512 K info for low mem*/
@@ -73,6 +69,7 @@ char *Hang_Info = hang_buff;
 static int Hang_Info_Size;
 static bool Hang_Detect_first;
 
+/* #define BOOT_UP_HANG */
 
 #define HD_PROC "hang_detect"
 #define	COUNT_SWT_INIT	0
@@ -230,11 +227,6 @@ static ssize_t monitor_hang_write(struct file *filp, const char __user *buf,
 }
 
 
-/* QHQ RT Monitor */
-/* QHQ RT Monitor    end */
-
-
-
 
 /*
  * aed process daemon and other command line may access me
@@ -246,22 +238,6 @@ static long monitor_hang_ioctl(struct file *file, unsigned int cmd,
 	int ret = 0;
 	static long long monitor_status;
 
-	if (cmd == AEEIOCTL_WDT_KICK_POWERKEY) {
-		if ((int)arg == WDT_SETBY_WMS_DISABLE_PWK_MONITOR) {
-			/* pwk_start_monitor=0; */
-			/* wdt_kick_status=0; */
-			/* hwt_kick_times=0; */
-		} else if ((int)arg == WDT_SETBY_WMS_ENABLE_PWK_MONITOR) {
-			/* pwk_start_monitor=1; */
-			/* wdt_kick_status=0; */
-			/* hwt_kick_times=0; */
-		} else if ((int)arg < 0xf) {
-			aee_kernel_wdt_kick_Powkey_api("Powerkey ioctl",
-					(int)arg);
-		}
-		return ret;
-
-	}
 	/* QHQ RT Monitor */
 	if (cmd == AEEIOCTL_RT_MON_Kick) {
 		pr_info("AEEIOCTL_RT_MON_Kick ( %d)\n", (int)arg);
@@ -376,9 +352,6 @@ static void __exit monitor_hang_exit(void)
 	misc_deregister(&aed_wdt_RT_Monitor_dev);
 }
 
-
-
-
 static int FindTaskByName(char *name)
 {
 	struct task_struct *task;
@@ -390,7 +363,7 @@ static int FindTaskByName(char *name)
 	read_lock(&tasklist_lock);
 	for_each_process(task) {
 		if (task && (strncmp(task->comm, name, strlen(name)) == 0)) {
-			LOGE("[Hang_Detect] %s found pid:%d.\n",
+			pr_info("[Hang_Detect] %s found pid:%d.\n",
 					task->comm, task->pid);
 			ret = task->pid;
 			break;
@@ -664,8 +637,6 @@ void show_thread_info(struct task_struct *p, bool dump_bt)
 	char stat_nam[] = TASK_STATE_TO_CHAR_STR;
 
 	state = p->state ? __ffs(p->state) + 1 : 0;
-	LOGV("%-15.15s %c", p->comm,
-			state < sizeof(stat_nam) - 1 ? stat_nam[state] : '?');
 
 	Log2HangInfo("%-15.15s %c ", p->comm,
 		state < sizeof(stat_nam) - 1 ? stat_nam[state] : '?');
@@ -695,9 +666,8 @@ void show_thread_info(struct task_struct *p, bool dump_bt)
 		get_kernel_bt(p);
 }
 
-static int DumpThreadNativeMaps_log(pid_t pid)
+static int DumpThreadNativeMaps_log(pid_t pid, struct task_struct *current_task)
 {
-	struct task_struct *current_task;
 	struct vm_area_struct *vma;
 	int mapcount = 0;
 	struct file *file;
@@ -708,7 +678,6 @@ static int DumpThreadNativeMaps_log(pid_t pid)
 	char *path_p = NULL;
 	struct path base_path;
 
-	current_task = find_task_by_vpid(pid);	/* get tid task */
 	if (current_task == NULL)
 		return -ESRCH;
 	user_ret = task_pt_regs(current_task);
@@ -778,17 +747,14 @@ static int DumpThreadNativeMaps_log(pid_t pid)
 	return 0;
 }
 
-
-
-static int DumpThreadNativeInfo_By_tid_log(pid_t tid)
+static int DumpThreadNativeInfo_By_tid_log(pid_t tid,
+	struct task_struct *current_task)
 {
-	struct task_struct *current_task;
+
 	struct pt_regs *user_ret;
 	struct vm_area_struct *vma;
 	int ret = -1;
 
-	/* current_task = get_current(); */
-	current_task = find_task_by_vpid(tid);	/* get tid task */
 	if (current_task == NULL)
 		return -ESRCH;
 	user_ret = task_pt_regs(current_task);
@@ -1072,23 +1038,26 @@ void show_native_bt_by_pid(int task_pid)
 	pid = find_get_pid(task_pid);
 	t = p = get_pid_task(pid, PIDTYPE_PID);
 
-	if (p != NULL) {
+	if (p != NULL && try_get_task_stack(p)) {
 		pr_info("show_bt_by_pid: %d: %s.\n", task_pid, t->comm);
 
-		DumpThreadNativeMaps_log(task_pid);
+		DumpThreadNativeMaps_log(task_pid, p);
 		/* catch maps to Userthread_maps */
 		/* change send ptrace_stop to send signal stop */
 		do_send_sig_info(SIGSTOP, SEND_SIG_FORCED, p, true);
 		do {
-			if (t) {
+			if (t && try_get_task_stack(t)) {
 				pid_t tid = 0;
 
+				get_task_struct(t);
 				tid = task_pid_vnr(t);
 				state = t->state ? __ffs(t->state) + 1 : 0;
 				pr_info("%s sysTid=%d, pid=%d\n",
 					t->comm, tid, task_pid);
-				DumpThreadNativeInfo_By_tid_log(tid);
+				DumpThreadNativeInfo_By_tid_log(tid, t);
 				/* catch user-space bt */
+				put_task_stack(t);
+				put_task_struct(t);
 			}
 			if ((++count) % 5 == 4)
 				msleep(20);
@@ -1096,17 +1065,18 @@ void show_native_bt_by_pid(int task_pid)
 		/* change send ptrace_stop to send signal stop */
 		if (stat_nam[state] != 'T')
 			do_send_sig_info(SIGCONT, SEND_SIG_FORCED, p, true);
+		put_task_stack(p);
 		put_task_struct(p);
-	}
+	} else if (p != NULL)
+		put_task_struct(p);
 	put_pid(pid);
 }
 EXPORT_SYMBOL(show_native_bt_by_pid);
 
 
 
-static int DumpThreadNativeMaps(pid_t pid)
+static int DumpThreadNativeMaps(pid_t pid, struct task_struct *current_task)
 {
-	struct task_struct *current_task;
 	struct vm_area_struct *vma;
 	int mapcount = 0;
 	struct file *file;
@@ -1117,19 +1087,18 @@ static int DumpThreadNativeMaps(pid_t pid)
 	char *path_p = NULL;
 	struct path base_path;
 
-	current_task = find_task_by_vpid(pid);	/* get tid task */
 	if (current_task == NULL)
 		return -ESRCH;
 	user_ret = task_pt_regs(current_task);
 
 	if (!user_mode(user_ret)) {
-		LOGE(" %s,%d:%s: in user_mode", __func__, pid,
+		pr_info(" %s,%d:%s: in user_mode", __func__, pid,
 				current_task->comm);
 		return -1;
 	}
 
 	if (current_task->mm == NULL) {
-		LOGE(" %s,%d:%s: current_task->mm == NULL", __func__, pid,
+		pr_info(" %s,%d:%s: current_task->mm == NULL", __func__, pid,
 				current_task->comm);
 		return -1;
 	}
@@ -1141,14 +1110,6 @@ static int DumpThreadNativeMaps(pid_t pid)
 		file = vma->vm_file;
 		flags = vma->vm_flags;
 		if (file) {	/* !!!!!!!!only dump 1st mmaps!!!!!!!!!!!! */
-			LOGV("%08lx-%08lx %c%c%c%c    %s\n",
-				vma->vm_start, vma->vm_end,
-			     flags & VM_READ ? 'r' : '-',
-			     flags & VM_WRITE ? 'w' : '-',
-			     flags & VM_EXEC ? 'x' : '-',
-			     flags & VM_MAYSHARE ? 's' : 'p',
-			     (unsigned char *)(file->f_path.dentry->d_iname));
-
 			if (flags & VM_EXEC) {
 				/* we only catch code section for reduce
 				 * maps space
@@ -1183,12 +1144,6 @@ static int DumpThreadNativeMaps(pid_t pid)
 				}
 			}
 
-			LOGV("%08lx-%08lx %c%c%c%c    %s\n",
-				vma->vm_start, vma->vm_end,
-				flags & VM_READ ? 'r' : '-',
-				flags & VM_WRITE ? 'w' : '-',
-				flags & VM_EXEC ? 'x' : '-',
-				flags & VM_MAYSHARE ? 's' : 'p', name);
 			if (flags & VM_EXEC) {
 				Log2HangInfo("%08lx-%08lx %c%c%c%c %s\n",
 					vma->vm_start, vma->vm_end,
@@ -1208,29 +1163,27 @@ static int DumpThreadNativeMaps(pid_t pid)
 
 
 
-static int DumpThreadNativeInfo_By_tid(pid_t tid)
+static int DumpThreadNativeInfo_By_tid(pid_t tid,
+	struct task_struct *current_task)
 {
-	struct task_struct *current_task;
 	struct pt_regs *user_ret;
 	struct vm_area_struct *vma;
 	unsigned long userstack_start = 0;
 	unsigned long userstack_end = 0, length = 0;
 	int ret = -1;
 
-	/* current_task = get_current(); */
-	current_task = find_task_by_vpid(tid);	/* get tid task */
 	if (current_task == NULL)
 		return -ESRCH;
 	user_ret = task_pt_regs(current_task);
 
 	if (!user_mode(user_ret)) {
-		LOGE(" %s,%d:%s,fail in user_mode", __func__, tid,
+		pr_info(" %s,%d:%s,fail in user_mode", __func__, tid,
 				current_task->comm);
 		return ret;
 	}
 
 	if (current_task->mm == NULL) {
-		LOGE(" %s,%d:%s, current_task->mm == NULL", __func__, tid,
+		pr_info(" %s,%d:%s, current_task->mm == NULL", __func__, tid,
 				current_task->comm);
 		return ret;
 	}
@@ -1265,12 +1218,10 @@ static int DumpThreadNativeInfo_By_tid(pid_t tid)
 	up_read(&current_task->mm->mmap_sem);
 
 	if (userstack_end == 0) {
-		LOGE(" %s,%d:%s,userstack_end == 0", __func__,
+		pr_info(" %s,%d:%s,userstack_end == 0", __func__,
 				tid, current_task->comm);
 		return ret;
 	}
-	LOGV("Dump K32 stack range (0x%08lx:0x%08lx)\n", userstack_start,
-			userstack_end);
 	length = userstack_end - userstack_start;
 
 
@@ -1289,7 +1240,7 @@ static int DumpThreadNativeInfo_By_tid(pid_t tid)
 					&tempSpContent, sizeof(tempSpContent),
 					0);
 			if (copied != sizeof(tempSpContent)) {
-				LOGE(
+				pr_info(
 				  "access_process_vm  SPStart error,sizeof(tempSpContent)=%x\n"
 				  , (unsigned int)sizeof(tempSpContent));
 				/* return -EIO; */
@@ -1307,8 +1258,6 @@ static int DumpThreadNativeInfo_By_tid(pid_t tid)
 			SPStart += 4 * 4;
 		}
 	}
-	LOGV("u+k 32 copy_from_user ret(0x%08x),len:%lx\n", ret, length);
-	LOGV("end dump native stack:\n");
 #else	/* 64bit, First deal with K64+U64, the last time to deal with K64+U32 */
 	/* K64_U32 for current task */
 	if (compat_user_mode(user_ret)) {	/* K64_U32 for check reg */
@@ -1348,12 +1297,10 @@ static int DumpThreadNativeInfo_By_tid(pid_t tid)
 		up_read(&current_task->mm->mmap_sem);
 
 		if (userstack_end == 0) {
-			LOGE("Dump native stack failed:\n");
+			pr_info("Dump native stack failed:\n");
 			return ret;
 		}
 
-		LOGV("Dump K64+ U32 stack range (0x%08lx:0x%08lx)\n",
-				userstack_start, userstack_end);
 		length = userstack_end - userstack_start;
 
 		/*  dump native stack to buffer */
@@ -1370,7 +1317,7 @@ static int DumpThreadNativeInfo_By_tid(pid_t tid)
 						SPStart, &tempSpContent,
 						sizeof(tempSpContent), 0);
 				if (copied != sizeof(tempSpContent)) {
-					LOGE(
+					pr_info(
 					  "access_process_vm  SPStart error,sizeof(tempSpContent)=%x\n",
 					  (unsigned int)sizeof(tempSpContent));
 					/* return -EIO; */
@@ -1390,10 +1337,6 @@ static int DumpThreadNativeInfo_By_tid(pid_t tid)
 			}
 		}
 	} else {		/*K64+U64 */
-		LOGV(" K64+ U64 pc/lr/sp 0x%16lx/0x%16lx/0x%16lx\n",
-		     (long)(user_ret->user_regs.pc),
-		     (long)(user_ret->user_regs.regs[30]),
-		     (long)(user_ret->user_regs.sp));
 		userstack_start = (unsigned long)user_ret->user_regs.sp;
 
 		down_read(&current_task->mm->mmap_sem);
@@ -1410,7 +1353,7 @@ static int DumpThreadNativeInfo_By_tid(pid_t tid)
 		}
 		up_read(&current_task->mm->mmap_sem);
 		if (userstack_end == 0) {
-			LOGE("Dump native stack failed:\n");
+			pr_info("Dump native stack failed:\n");
 			return ret;
 		}
 
@@ -1430,7 +1373,7 @@ static int DumpThreadNativeInfo_By_tid(pid_t tid)
 						    (unsigned long)tmpfp, &tmp,
 						      sizeof(tmp), 0);
 				if (copied != sizeof(tmp)) {
-					LOGE("access_process_vm  fp error\n");
+					pr_info("access_process_vm  fp error\n");
 					return -EIO;
 				}
 				copied =
@@ -1438,7 +1381,7 @@ static int DumpThreadNativeInfo_By_tid(pid_t tid)
 						    (unsigned long)tmpfp + 0x08,
 						      &tmpLR, sizeof(tmpLR), 0);
 				if (copied != sizeof(tmpLR)) {
-					LOGE("access_process_vm  pc error\n");
+					pr_info("access_process_vm  pc error\n");
 					return -EIO;
 				}
 				tmpfp = tmp;
@@ -1448,18 +1391,12 @@ static int DumpThreadNativeInfo_By_tid(pid_t tid)
 					break;
 			}
 			for (copied = 0; copied < frames; copied++) {
-				LOGV("frame:#%d: pc(%016lx)\n", copied,
-						native_bt[copied]);
 				/*  #00 pc 000000000006c760
 				 *  /system/lib64/ libc.so (__epoll_pwait+8)
 				 */
 				Log2HangInfo("#%d pc %lx\n", copied,
 						native_bt[copied]);
 			}
-			LOGE(
-				"tid(%d:%s),frame %d. tmpfp(0x%lx),userstack_start(0x%lx),userstack_end(0x%lx)\n",
-				tid, current_task->comm, frames, tmpfp,
-				userstack_start, userstack_end);
 		}
 	}
 #endif
@@ -1476,12 +1413,11 @@ static void show_bt_by_pid(int task_pid)
 #endif
 	int count = 0, dump_native = 0;
 	unsigned int state = 0;
-	char stat_nam[] = TASK_STATE_TO_CHAR_STR;
 
 	pid = find_get_pid(task_pid);
 	t = p = get_pid_task(pid, PIDTYPE_PID);
 
-	if (p != NULL && p->stack != NULL) {
+	if (p != NULL && try_get_task_stack(p)) {
 		Log2HangInfo("%s: %d: %s.\n", __func__, task_pid, t->comm);
 #ifndef __aarch64__	 /* 32bit */
 		if (strcmp(t->comm, "system_server") == 0)
@@ -1510,17 +1446,14 @@ static void show_bt_by_pid(int task_pid)
 #endif
 		if (dump_native == 1)
 			/* catch maps to Userthread_maps */
-			DumpThreadNativeMaps(task_pid);
+			DumpThreadNativeMaps(task_pid, p);
 		do {
-			if (t) {
+			if (t && try_get_task_stack(t)) {
 				pid_t tid = 0;
 
+				get_task_struct(t);
 				tid = task_pid_vnr(t);
 				state = t->state ? __ffs(t->state) + 1 : 0;
-				LOGV("lhd: %-15.15s %c pid(%d),tid(%d)",
-				     t->comm, state < sizeof(stat_nam) - 1 ?
-				     stat_nam[state] : '?',
-				     task_pid, tid);
 				/* catch kernel bt */
 				show_thread_info(t, true);
 
@@ -1528,12 +1461,15 @@ static void show_bt_by_pid(int task_pid)
 						tid, task_pid);
 
 				if (dump_native == 1)
-					DumpThreadNativeInfo_By_tid(tid);
+					DumpThreadNativeInfo_By_tid(tid, t);
+				put_task_stack(t);
+				put_task_struct(t);
 			}
 			if ((++count) % 5 == 4)
 				msleep(20);
 			Log2HangInfo("-\n");
 		} while_each_thread(p, t);
+		put_task_stack(p);
 		put_task_struct(p);
 	} else if (p != NULL) {
 		put_task_struct(p);
@@ -1553,6 +1489,7 @@ static void hang_dump_backtrace(void)
 
 	read_lock(&tasklist_lock);
 	for_each_process(p) {
+		get_task_struct(p);
 		if (Hang_Detect_first == false) {
 			if (strcmp(p->comm, "system_server") == 0)
 				system_server_task = p;
@@ -1566,15 +1503,24 @@ static void hang_dump_backtrace(void)
 			(strcmp(p->comm, "mmcqd/0") == 0) ||
 			(strcmp(p->comm, "debuggerd64") == 0) ||
 			(strcmp(p->comm, "mmcqd/1") == 0) ||
+			(strcmp(p->comm, "vdc") == 0) ||
+			(strcmp(p->comm, "vold") == 0) ||
 			(strcmp(p->comm, "debuggerd") == 0)) {
 			read_unlock(&tasklist_lock);
 			show_bt_by_pid(p->pid);
 			read_lock(&tasklist_lock);
+			put_task_struct(p);
 			continue;
 		}
 		for_each_thread(p, t) {
-			show_thread_info(t, false);
+			if (try_get_task_stack(t)) {
+				get_task_struct(t);
+				show_thread_info(t, false);
+				put_task_stack(t);
+				put_task_struct(t);
+			}
 		}
+		put_task_struct(p);
 	}
 	read_unlock(&tasklist_lock);
 	Log2HangInfo("dump backtrace end.\n");
@@ -1712,37 +1658,33 @@ static int hang_detect_thread(void *arg)
 	};
 	struct task_struct *hd_thread;
 	struct pt_regs saved_regs;
-#ifdef HANG_LOW_MEM
-	char *buf = NULL;
-#endif
 
 	sched_setscheduler(current, SCHED_FIFO, &param);
 	reset_hang_info();
 	msleep(120 * 1000);
 	pr_debug("[Hang_Detect] hang_detect thread starts.\n");
+#ifdef BOOT_UP_HANG
+	hd_timeout = 9;
+	hd_detect_enabled = 1;
+	hang_detect_counter = 9;
+#endif
 	while (1) {
 		pr_info(
 			"[Hang_Detect] hang_detect thread counts down %d:%d, status %d.\n",
 			hang_detect_counter, hd_timeout, hd_detect_enabled);
+#ifdef BOOT_UP_HANG
+		if (reboot_flag || (hd_detect_enabled == 1))
+#else
 		system_server_pid = FindTaskByName("system_server");
 
 		if (reboot_flag || ((hd_detect_enabled == 1) &&
-			(system_server_pid != -1))) {
+			(system_server_pid != -1)))
+#endif
+		{
 #ifdef CONFIG_MTK_RAM_CONSOLE
 			aee_rr_rec_hang_detect_timeout_count(hd_timeout);
 #endif
 
-#ifdef HANG_LOW_MEM
-			if (MaxHangInfoSize == MAX_HANG_INFO_SIZE) {
-				buf = kmalloc(4*1024*1024, GFP_KERNEL);
-				if (buf == NULL) {
-					pr_info("[Hang_detect] kmalloc memory failed.\n");
-				} else {
-					Hang_Info = buf;
-					MaxHangInfoSize = 4*1024*1024;
-				}
-			}
-#endif
 			if (hang_detect_counter == 1 && hang_aee_warn == 2
 				&& hd_timeout != 11 && reboot_flag == false) {
 				hang_detect_counter = hd_timeout / 2;
@@ -1885,42 +1827,6 @@ int hang_detect_init(void)
 	return 0;
 }
 
-/* added by QHQ  for hang detect */
-/* end */
-
-
-int aee_kernel_Powerkey_is_press(void)
-{
-	int ret = 0;
-
-	ret = pwk_start_monitor;
-	return ret;
-}
-EXPORT_SYMBOL(aee_kernel_Powerkey_is_press);
-
-void aee_kernel_wdt_kick_Powkey_api(const char *module, int msg)
-{
-	spin_lock(&pwk_hang_lock);
-	wdt_kick_status |= msg;
-	spin_unlock(&pwk_hang_lock);
-}
-EXPORT_SYMBOL(aee_kernel_wdt_kick_Powkey_api);
-
-
-void aee_powerkey_notify_press(unsigned long pressed)
-{
-	if (pressed) {	/* pwk down or up ???? need to check */
-		spin_lock(&pwk_hang_lock);
-		wdt_kick_status = 0;
-		spin_unlock(&pwk_hang_lock);
-		hwt_kick_times = 0;
-		pwk_start_monitor = 1;
-		pr_debug("(%s) HW keycode powerkey\n",
-			 pressed ? "pressed" : "released");
-	}
-}
-EXPORT_SYMBOL(aee_powerkey_notify_press);
-
 void get_hang_detect_buffer(unsigned long *addr, unsigned long *size,
 			    unsigned long *start)
 {
@@ -1928,41 +1834,6 @@ void get_hang_detect_buffer(unsigned long *addr, unsigned long *size,
 	*start = 0;
 	*size = MaxHangInfoSize;
 }
-
-#ifdef CONFIG_MTK_BOOT
-int aee_kernel_wdt_kick_api(int kinterval)
-{
-	int ret = 0;
-
-	if (pwk_start_monitor && (get_boot_mode() == NORMAL_BOOT)
-	    && (FindTaskByName("system_server") != -1)) {
-		/* Only in normal_boot! */
-		pr_debug(
-		     "Press powerkey!!  g_boot_mode=%d,wdt_kick_status=0x%x,tickTimes=0x%x,g_kinterval=%d,RT[%lld]\n",
-		    get_boot_mode(), wdt_kick_status, hwt_kick_times, kinterval,
-		    sched_clock());
-		hwt_kick_times++;
-		if ((kinterval * hwt_kick_times > 180)) {
-			/* only monitor 3 min */
-			pwk_start_monitor = 0;
-		}
-		if ((wdt_kick_status & (WDT_SETBY_Display | WDT_SETBY_SF)) ==
-		    (WDT_SETBY_Display | WDT_SETBY_SF)) {
-			pwk_start_monitor = 0;
-			pr_debug(
-			     "[WDK] Powerkey Tick ok,kick_status 0x%08x,RT[%lld]\n ",
-			     wdt_kick_status, sched_clock());
-		}
-	}
-	return ret;
-}
-#else				/*CONFIG_MTK_BOOT */
-int aee_kernel_wdt_kick_api(int kinterval)
-{
-	return 0;
-}
-#endif
-EXPORT_SYMBOL(aee_kernel_wdt_kick_api);
 
 
 module_init(monitor_hang_init);

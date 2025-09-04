@@ -64,6 +64,7 @@
 #include <linux/page_owner.h>
 #include <linux/kthread.h>
 #include <linux/memcontrol.h>
+#include <linux/psi.h>
 
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
@@ -3187,15 +3188,20 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 		enum compact_priority prio, enum compact_result *compact_result)
 {
 	struct page *page;
+	unsigned long pflags;
 	unsigned int noreclaim_flag = current->flags & PF_MEMALLOC;
 
 	if (!order)
 		return NULL;
 
+	psi_memstall_enter(&pflags);
 	current->flags |= PF_MEMALLOC;
+
 	*compact_result = try_to_compact_pages(gfp_mask, order, alloc_flags, ac,
 									prio);
+
 	current->flags = (current->flags & ~PF_MEMALLOC) | noreclaim_flag;
+	psi_memstall_leave(&pflags);
 
 	if (*compact_result <= COMPACT_INACTIVE)
 		return NULL;
@@ -3332,11 +3338,13 @@ __perform_reclaim(gfp_t gfp_mask, unsigned int order,
 {
 	struct reclaim_state reclaim_state;
 	int progress;
+	unsigned long pflags;
 
 	cond_resched();
 
 	/* We now go into synchronous reclaim */
 	cpuset_memory_pressure_bump();
+	psi_memstall_enter(&pflags);
 	current->flags |= PF_MEMALLOC;
 	lockdep_set_current_reclaim_state(gfp_mask);
 	reclaim_state.reclaimed_slab = 0;
@@ -3348,6 +3356,7 @@ __perform_reclaim(gfp_t gfp_mask, unsigned int order,
 	current->reclaim_state = NULL;
 	lockdep_clear_current_reclaim_state();
 	current->flags &= ~PF_MEMALLOC;
+	psi_memstall_leave(&pflags);
 
 	cond_resched();
 
@@ -3563,8 +3572,6 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 	enum compact_result compact_result;
 	int compaction_retries;
 	int no_progress_loops;
-	unsigned long alloc_start = jiffies;
-	unsigned int stall_timeout = 10 * HZ;
 	unsigned int cpuset_mems_cookie;
 
 	/*
@@ -3737,14 +3744,6 @@ retry:
 	if (order > PAGE_ALLOC_COSTLY_ORDER && !(gfp_mask & __GFP_REPEAT))
 		goto nopage;
 
-	/* Make sure we know about allocations which stall for too long */
-	if (time_after(jiffies, alloc_start + stall_timeout)) {
-		warn_alloc(gfp_mask,
-			"page allocation stalls for %ums, order:%u",
-			jiffies_to_msecs(jiffies-alloc_start), order);
-		stall_timeout += 10 * HZ;
-	}
-
 	if (should_reclaim_retry(gfp_mask, order, ac, alloc_flags,
 				 did_some_progress > 0, &no_progress_loops))
 		goto retry;
@@ -3806,7 +3805,7 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 	struct page *page;
 	unsigned int alloc_flags = ALLOC_WMARK_LOW;
 #ifdef CONFIG_DMAUSER_PAGES
-	static DEFINE_RATELIMIT_STATE(dmawarn, (180 * HZ), 1);
+	static bool __section(.data.unlikely) __dmawarned;
 #endif
 	gfp_t alloc_mask = gfp_mask; /* The gfp_t that was actually used for allocation */
 	struct alloc_context ac = {
@@ -3815,25 +3814,6 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 		.nodemask = nodemask,
 		.migratetype = gfpflags_to_migratetype(gfp_mask),
 	};
-
-#ifdef CONFIG_DMAUSER_PAGES
-	/*
-	 * in this test mode: (extend DMA zone to 8GB)
-	 * 1. allocate user pages from DMA zone (<4GB)
-	 * 2. allocate non-user pages from NORMAL zone to test if all h/w &
-	 * drivers work well with >4GB addresses
-	 */
-	if ((gfp_mask & GFP_HIGHUSER) == GFP_HIGHUSER)
-		gfp_mask |= GFP_DMA;
-#ifdef CONFIG_NORMALKERNEL_PAGES
-	else
-		gfp_mask &= ~GFP_DMA;
-#endif
-
-	ac.high_zoneidx = gfp_zone(gfp_mask);
-	ac.migratetype = gfpflags_to_migratetype(gfp_mask);
-	alloc_mask = gfp_mask;
-#endif
 
 #ifdef CONFIG_ZONE_MOVABLE_CMA
 	/* No fast allocation gets into ZONE_MOVABLE */
@@ -3933,9 +3913,11 @@ out:
 	 */
 	if (page && !(gfp_mask & GFP_DMA) &&
 		(page_zonenum(page) == OPT_ZONE_DMA)) {
-		if (__ratelimit(&dmawarn))
+		if (unlikely(!__dmawarned)) {
+			__dmawarned = true;
 			aee_kernel_warning("large memory",
 					"out of high-end memory");
+		}
 	}
 #endif
 	return page;
@@ -4042,11 +4024,11 @@ refill:
 		/* Even if we own the page, we do not use atomic_set().
 		 * This would break get_page_unless_zero() users.
 		 */
-		page_ref_add(page, size - 1);
+		page_ref_add(page, size);
 
 		/* reset page count bias and offset to start of new frag */
 		nc->pfmemalloc = page_is_pfmemalloc(page);
-		nc->pagecnt_bias = size;
+		nc->pagecnt_bias = size + 1;
 		nc->offset = size;
 	}
 
@@ -4062,10 +4044,10 @@ refill:
 		size = nc->size;
 #endif
 		/* OK, page count is 0, we can safely set it */
-		set_page_count(page, size);
+		set_page_count(page, size + 1);
 
 		/* reset page count bias and offset to start of new frag */
-		nc->pagecnt_bias = size;
+		nc->pagecnt_bias = size + 1;
 		offset = size - fragsz;
 	}
 
@@ -5581,13 +5563,15 @@ static unsigned long __meminit zone_spanned_pages_in_node(int nid,
 					unsigned long *zone_end_pfn,
 					unsigned long *ignored)
 {
+	unsigned long zone_low = arch_zone_lowest_possible_pfn[zone_type];
+	unsigned long zone_high = arch_zone_highest_possible_pfn[zone_type];
 	/* When hotadd a new node from cpu_up(), the node should be empty */
 	if (!node_start_pfn && !node_end_pfn)
 		return 0;
 
 	/* Get the start and end of the zone */
-	*zone_start_pfn = arch_zone_lowest_possible_pfn[zone_type];
-	*zone_end_pfn = arch_zone_highest_possible_pfn[zone_type];
+	*zone_start_pfn = clamp(node_start_pfn, zone_low, zone_high);
+	*zone_end_pfn = clamp(node_end_pfn, zone_low, zone_high);
 	adjust_zone_range_for_zone_movable(nid, zone_type,
 				node_start_pfn, node_end_pfn,
 				zone_start_pfn, zone_end_pfn);
@@ -6611,17 +6595,20 @@ void __init mem_init_print_info(const char *str)
 
 #ifdef CONFIG_MTK_MEMCFG
 		kernel_reserve_meminfo.available =
-			nr_free_pages() << PAGE_SHIFT;
-		kernel_reserve_meminfo.total = physpages << PAGE_SHIFT;
+			(unsigned long long)(nr_free_pages()) << PAGE_SHIFT;
+		kernel_reserve_meminfo.total =
+			(unsigned long long)physpages << PAGE_SHIFT;
 		kernel_reserve_meminfo.kernel_code = codesize;
 		kernel_reserve_meminfo.rwdata = datasize;
 		kernel_reserve_meminfo.rodata = rosize;
 		kernel_reserve_meminfo.init = init_data_size + init_code_size;
 		kernel_reserve_meminfo.bss = bss_size;
 		kernel_reserve_meminfo.reserved =
-			(physpages - totalram_pages) << PAGE_SHIFT;
+			(unsigned long long)(physpages - totalram_pages) <<
+			PAGE_SHIFT;
 #ifdef CONFIG_HIGHMEM
-		kernel_reserve_meminfo.highmem = totalhigh_pages << PAGE_SHIFT;
+		kernel_reserve_meminfo.highmem =
+			(unsigned long long)totalhigh_pages << PAGE_SHIFT;
 #endif
 #endif
 }
@@ -7674,6 +7661,9 @@ int free_reserved_memory(phys_addr_t start_phys,
 			, __func__, &start_phys, &end_phys);
 		return -1;
 	}
+
+	memblock_free(start_phys, (end_phys - start_phys));
+
 	for (pos = start_phys; pos < end_phys; pos += PAGE_SIZE, pages++)
 		free_reserved_page(phys_to_page(pos));
 

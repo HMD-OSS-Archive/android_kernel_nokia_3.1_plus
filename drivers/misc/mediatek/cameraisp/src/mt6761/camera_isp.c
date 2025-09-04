@@ -3019,6 +3019,12 @@ static signed int ISP_DumpReg(void)
 		(unsigned int)ISP_RD32(ISP_ADDR + 0xd10));
 	log_err("0x%08X	%08X", (unsigned int)(ISP_ADDR + 0xd20),
 		(unsigned int)ISP_RD32(ISP_ADDR + 0xd20));
+
+	ISP_WR32(ISP_IMGSYS_BASE + 0x4160, 0x3014);
+	log_err("0x%08X	%08X (0x15004160=0x3014)",
+		(unsigned int)(ISP_TPIPE_ADDR + 0x4164),
+		(unsigned int)ISP_RD32(ISP_IMGSYS_BASE + 0x4164));
+
 	/* cq */
 	log_err("CQ	Related");
 	ISP_WR32(ISP_IMGSYS_BASE + 0x4160, 0x6000);
@@ -6364,7 +6370,7 @@ LOG_BYPASS:
 		case _imgo_d_:
 		case _rrzo_d_:
 			irqT = _IRQ_D;
-			irqT_Lock = _IRQ;
+			irqT_Lock = _IRQ_D;
 			break;
 		case _camsv_imgo_:
 			irqT_Lock = _CAMSV_IRQ;
@@ -8461,6 +8467,7 @@ static signed int ISP_ED_BufQue_CTRL_FUNC(struct ISP_ED_BUFQUE_STRUCT param)
 		if (param.p2burstQIdx == 0) {
 			if (P2_EDBUF_MList_FirstBufIdx ==
 				    P2_EDBUF_MList_LastBufIdx &&
+			    P2_EDBUF_MList_FirstBufIdx != -1 &&
 			    P2_EDBUF_MgrList[P2_EDBUF_MList_FirstBufIdx]
 					    .p2dupCQIdx == -1) {
 				/* all managed buffer node is empty */
@@ -12028,7 +12035,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 		break;
 	case ISP_GET_ISPCLK:
 		{
-			uint64_t freq_steps[ISP_CLK_LEVEL_CNT];
+			uint64_t freq_steps[ISP_CLK_LEVEL_CNT] = {0};
 			unsigned int lv = 0;
 			int result = 0;
 			struct ISP_GET_SUPPORTED_ISP_CLK Ispclks;

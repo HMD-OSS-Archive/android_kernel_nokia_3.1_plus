@@ -220,6 +220,8 @@
 #include <linux/usb/gadget.h>
 #include <linux/usb/composite.h>
 
+#include <linux/nospec.h>
+
 #include "configfs.h"
 #ifdef CONFIG_MEDIATEK_SOLUTION
 #include "usb_boost.h"
@@ -3128,10 +3130,10 @@ int fsg_common_create_lun(struct fsg_common *common, struct fsg_lun_config *cfg,
 
 	lun->name_pfx = name_pfx;
 
-	lun->cdrom = !!cfg->cdrom;
-	lun->ro = cfg->cdrom || cfg->ro;
+	lun->cdrom = 1;
+	lun->ro = 1;
 	lun->initially_ro = lun->ro;
-	lun->removable = !!cfg->removable;
+	lun->removable = 1;
 
 	if (!common->sysfs) {
 		/* we DON'T own the name!*/
@@ -3572,6 +3574,7 @@ static struct config_group *fsg_lun_make(struct config_group *group,
 	fsg_opts = to_fsg_opts(&group->cg_item);
 	if (num >= FSG_MAX_LUNS)
 		return ERR_PTR(-ERANGE);
+	num = array_index_nospec(num, FSG_MAX_LUNS);
 
 	mutex_lock(&fsg_opts->lock);
 	if (fsg_opts->refcnt || fsg_opts->common->luns[num]) {

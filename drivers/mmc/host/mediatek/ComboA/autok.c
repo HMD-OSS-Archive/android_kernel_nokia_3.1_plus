@@ -992,8 +992,14 @@ static int autok_check_scan_res64_new(u64 rawdat,
 				scan_res->fail_info[j].bd_e =
 					scan_res->fail_info[j + 1].bd_e;
 			}
-			scan_res->fail_info[scan_res->fail_cnt - 1].bd_s = 0;
-			scan_res->fail_info[scan_res->fail_cnt - 1].bd_e = 0;
+			/* add check to prevent coverity scan fail */
+			if (scan_res->fail_cnt >= 1) {
+				scan_res->fail_info[
+					scan_res->fail_cnt - 1].bd_s = 0;
+				scan_res->fail_info[
+					scan_res->fail_cnt - 1].bd_e = 0;
+			} else
+				WARN_ON(1);
 			scan_res->fail_cnt--;
 		}
 	}
@@ -1045,6 +1051,23 @@ static int autok_pad_dly_corner_check(struct AUTOK_REF_INFO *pInfo)
 		AUTOK_RAWPRINT("[ATUOK]Err:can't find window both edge\r\n");
 		return -2;
 	}
+	/*
+	 * for shamoo case
+	 * xxxooooooxxxxooooxxx rising has more than 3 boundary
+	 * xxxooooooxxxxooooxxx failing has more than 3 boundary
+	 */
+	if ((pBdInfo_R->bd_cnt >= 3) && (pBdInfo_F->bd_cnt >= 3)) {
+		AUTOK_RAWPRINT("[ATUOK]Err:data window shamoo\r\n");
+		return -2;
+	}
+	/*
+	 * for corner case
+	 * xxxxxxxxxxxxxxxxxxxx rising only has one boundary,but all fail
+	 * oooooooooxxooooooo falling has normal boundary
+	 * or
+	 * ooooooooooooxooooo rising has normal boundary
+	 * xxxxxxxxxxxxxxxxxxxx falling only has one boundary,but all fail
+	 */
 	for (j = 0; j < 2; j++) {
 		if (j == 0) {
 			p_Temp[0] = pBdInfo_R;
@@ -3579,7 +3602,7 @@ int execute_online_tuning_hs400(struct msdc_host *host, u8 *res)
 		AUTOK_RAWPRINT("[AUTOK]CMD err while check device status\r\n");
 #ifdef CONFIG_MTK_EMMC_CQ_SUPPORT
 	/* check QSR status when CQ on */
-	if (host->mmc->card && host->mmc->card->ext_csd.cmdq_mode_en) {
+	if (host->mmc->card && mmc_card_cmdq(host->mmc->card)) {
 		ret = autok_send_tune_cmd(host, CHECK_QSR,
 			TUNE_CMD, &autok_host_para);
 		if (ret == E_RES_PASS) {
@@ -4048,7 +4071,7 @@ int execute_online_tuning_hs200(struct msdc_host *host, u8 *res)
 	return 0;
 fail:
 	kfree(pBdInfo);
-	return -1;
+	return err;
 }
 
 /* online tuning for SDIO3.0 plus */
@@ -5157,7 +5180,7 @@ int autok_offline_tuning_device_RX(struct msdc_host *host, u8 *res)
 	unsigned char tune_pass_cnt[32];
 	unsigned char tune_tmo_cnt[32];
 	char tune_result[33];
-	unsigned int cmd_tx;
+	unsigned int cmd_tx = 0;
 	unsigned int dat_tx[4] = {0};
 	unsigned int cmd_init_tx;
 	unsigned int dat_init_tx[4] = {0};
@@ -6456,6 +6479,11 @@ int hs200_execute_tuning(struct msdc_host *host, u8 *res)
 	unsigned int i = 0;
 	unsigned int value = 0;
 	unsigned int dtoc = 0;
+	struct AUTOK_PLAT_FUNC platform_para_func;
+	unsigned int ckgen = 0;
+
+	memset(&platform_para_func, 0, sizeof(struct AUTOK_PLAT_FUNC));
+	get_platform_func(platform_para_func);
 
 	do_gettimeofday(&tm_s);
 	int_en = MSDC_READ32(MSDC_INTEN);
@@ -6472,7 +6500,20 @@ int hs200_execute_tuning(struct msdc_host *host, u8 *res)
 	}
 
 	MSDC_WRITE32(MSDC_INT, 0xffffffff);
+
+	if (platform_para_func.latch_enhance == 1) {
+		ckgen = 0;
+		autok_write_param(host, CKGEN_MSDC_DLY_SEL, ckgen);
+	}
 	ret = execute_online_tuning_hs200(host, res);
+	if (platform_para_func.latch_enhance == 1) {
+		if (ret == -2) {
+			ckgen += 1;
+			autok_write_param(host, CKGEN_MSDC_DLY_SEL, ckgen);
+			ret = execute_online_tuning_hs200(host, res);
+		}
+	}
+
 	if (ret != 0) {
 		AUTOK_RAWPRINT("[AUTOK] ======Autok HS200 Failed======\r\n");
 		AUTOK_RAWPRINT("[AUTOK]======restore pre paras======\r\n");

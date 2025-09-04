@@ -494,8 +494,8 @@ void rtc_bbpu_power_down(void)
 {
 	unsigned long flags;
 	bool charger_status = false;
-	struct rtc_time rtc_time_now;
-	struct rtc_time rtc_time_alarm;
+	struct rtc_time rtc_time_now = {0};
+	struct rtc_time rtc_time_alarm = {0};
 	ktime_t ktime_now;
 	ktime_t ktime_alarm;
 	bool is_pwron_alarm;
@@ -685,7 +685,11 @@ static void rtc_handler(void)
 						   tm.tm_min, tm.tm_sec);
 				} while (time <= now_time);
 				spin_unlock_irqrestore(&rtc_lock, flags);
+#if defined(CONFIG_MACH_MT6779)
+				arch_reset(0, "kpoc");
+#else
 				kernel_restart("kpoc");
+#endif
 			} else {
 				hal_rtc_save_pwron_alarm();
 				pwron_alm = true;
@@ -877,22 +881,6 @@ static int rtc_ops_ioctl(struct device *dev, unsigned int cmd,
 {
 	/* dump_stack(); */
 	rtc_xinfo("%s cmd=%d\n", __func__, cmd);
-	switch (cmd) {
-	case RTC_AUTOBOOT_ON:
-		{
-			hal_rtc_set_spare_register(RTC_AUTOBOOT, AUTOBOOT_ON);
-			rtc_xinfo("%s cmd=RTC_AUTOBOOT_ON\n", __func__);
-			return 0;
-		}
-	case RTC_AUTOBOOT_OFF:	/* IPO shutdown */
-		{
-			hal_rtc_set_spare_register(RTC_AUTOBOOT, AUTOBOOT_OFF);
-			rtc_xinfo("%s cmd=RTC_AUTOBOOT_OFF\n", __func__);
-			return 0;
-		}
-	default:
-		break;
-	}
 	return -ENOIOCTLCMD;
 }
 
@@ -992,6 +980,7 @@ static int __init rtc_late_init(void)
 #if (defined(MTK_GPS_MT3332))
 	hal_rtc_set_gpio_32k_status(0, true);
 #endif
+	rtc_debug_init();
 
 	return 0;
 }

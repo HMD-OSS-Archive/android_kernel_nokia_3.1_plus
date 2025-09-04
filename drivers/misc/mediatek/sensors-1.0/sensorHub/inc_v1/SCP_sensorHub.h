@@ -17,6 +17,7 @@
 #define SCP_SENSOR_HUB_H
 
 #include <linux/ioctl.h>
+#include <linux/atomic.h>
 
 #if defined(CONFIG_MTK_SCP_SENSORHUB_V1)
 #error CONFIG_MTK_SCP_SENSORHUB_V1 should not configed
@@ -53,6 +54,7 @@ struct SensorState {
 	bool enable;
 	bool timestamp_filter;
 	atomic_t flushCnt;
+	atomic64_t enableTime;
 };
 
 #define SCP_SENSOR_HUB_TEMP_BUFSIZE     256
@@ -200,7 +202,13 @@ typedef struct {
 } geofence_event_t;
 
 struct sar_event_t {
-	int32_t state;
+	struct {
+		int32_t data[3];
+		int32_t x_bias;
+		int32_t y_bias;
+		int32_t z_bias;
+	};
+	uint32_t status;
 };
 
 typedef enum {

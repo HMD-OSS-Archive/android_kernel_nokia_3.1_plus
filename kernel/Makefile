@@ -2,12 +2,14 @@
 # Makefile for the linux kernel.
 #
 
-subdir-ccflags-y += -Werror
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/mtprof
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/sched
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/mcdi/include
+ifneq ($(wildcard $(srctree)/../vendor/mediatek/internal/selinux_warning_enable),)
+ccflags-y += -DMTK_SELINUX_WARNING_ENABLE
+endif
 
 obj-y     = fork.o exec_domain.o panic.o \
 	    cpu.o exit.o softirq.o resource.o \
@@ -35,6 +37,7 @@ KCOV_INSTRUMENT_extable.o := n
 # Don't self-instrument.
 KCOV_INSTRUMENT_kcov.o := n
 KASAN_SANITIZE_kcov.o := n
+CFLAGS_kcov.o := $(call cc-option, -fno-conserve-stack -fno-stack-protector)
 
 # cond_syscall is currently not LTO compatible
 CFLAGS_sys_ni.o = $(DISABLE_LTO)

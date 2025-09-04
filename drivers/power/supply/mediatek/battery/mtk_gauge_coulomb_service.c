@@ -35,6 +35,7 @@ static int fgclog_level;
 static int pre_coulomb;
 static bool init;
 static int coulomb_lock_cnt, hw_coulomb_lock_cnt;
+static int fix_coverity;
 
 #define FTLOG_ERROR_LEVEL   1
 #define FTLOG_DEBUG_LEVEL   2
@@ -357,6 +358,7 @@ void gauge_coulomb_stop(struct gauge_consumer *coulomb)
 	if (is_fg_disabled()) {
 		gauge_set_coulomb_interrupt1_ht(0);
 		gauge_set_coulomb_interrupt1_lt(0);
+		fix_coverity = 1;
 		return;
 	}
 
@@ -485,7 +487,7 @@ void gauge_coulomb_int_handler(void)
 
 static int gauge_coulomb_thread(void *arg)
 {
-	unsigned long flags;
+	unsigned long flags = 0;
 	struct timespec start, end, duraction;
 
 	while (1) {
@@ -511,6 +513,9 @@ static int gauge_coulomb_thread(void *arg)
 			(int)(duraction.tv_nsec / 1000000),
 			(int)(sstart[0].tv_nsec / 1000000),
 			(int)(sstart[1].tv_nsec / 1000000));
+
+		if (fix_coverity == 1)
+			break;
 	}
 
 	return 0;
@@ -519,6 +524,8 @@ static int gauge_coulomb_thread(void *arg)
 void gauge_coulomb_service_init(void)
 {
 	ft_trace("gauge coulomb_service_init\n");
+	INIT_LIST_HEAD(&coulomb_head_minus);
+	INIT_LIST_HEAD(&coulomb_head_plus);
 	mutex_init(&coulomb_lock);
 	mutex_init(&hw_coulomb_lock);
 	spin_lock_init(&slock);
@@ -532,4 +539,11 @@ void gauge_coulomb_service_init(void)
 		FG_BAT1_INT_H_NO, wake_up_gauge_coulomb);
 	pre_coulomb = gauge_get_coulomb();
 	init = true;
+
+#ifdef _DEA_MODIFY_
+	wait_que.function = gauge_coulomb_int_handler;
+	INIT_LIST_HEAD(&wait_que.list);
+	wait_que.name = "gauge coulomb service";
+#endif
+
 }

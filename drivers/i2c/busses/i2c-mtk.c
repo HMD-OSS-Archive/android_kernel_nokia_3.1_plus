@@ -64,7 +64,8 @@ static inline u16 _i2c_readw(struct mt_i2c *i2c, u16 offset)
 
 #define raw_i2c_writew(val, i2c, ch_ofs, ofs) \
 	do { \
-		if (((i2c)->dev_comp->ver != 0x2) || (V2_##ofs != 0xfff)) \
+		if (((i2c)->dev_comp->ver != 0x2 && (ofs != 0xfff)) || \
+		    (((i2c)->dev_comp->ver == 0x2) && (V2_##ofs != 0xfff))) \
 			_i2c_writew(val, i2c, ch_ofs + \
 				    (((i2c)->dev_comp->ver == 0x2) ? \
 				    (V2_##ofs) : ofs)); \
@@ -73,7 +74,8 @@ static inline u16 _i2c_readw(struct mt_i2c *i2c, u16 offset)
 #define raw_i2c_readw(i2c, ch_ofs, ofs) \
 	({ \
 		u16 value = 0; \
-		if (((i2c)->dev_comp->ver != 0x2) || (V2_##ofs != 0xfff)) \
+		if (((i2c)->dev_comp->ver != 0x2 && (ofs != 0xfff)) || \
+		    (((i2c)->dev_comp->ver == 0x2) && (V2_##ofs != 0xfff))) \
 			value = _i2c_readw(i2c, ch_ofs + \
 					   (((i2c)->dev_comp->ver == 0x2) ? \
 					   (V2_##ofs) : ofs)); \
@@ -567,10 +569,10 @@ static int mtk_i2c_calculate_speed(struct mt_i2c *i2c,
 static int i2c_set_speed(struct mt_i2c *i2c, unsigned int clk_src_in_hz)
 {
 	int ret;
-	unsigned int step_cnt;
-	unsigned int sample_cnt;
-	unsigned int l_step_cnt;
-	unsigned int l_sample_cnt;
+	unsigned int step_cnt = 0;
+	unsigned int sample_cnt = 0;
+	unsigned int l_step_cnt = 0;
+	unsigned int l_sample_cnt = 0;
 	unsigned int speed_hz;
 	unsigned int duty = HALF_DUTY_CYCLE;
 
@@ -1018,6 +1020,11 @@ static int mt_i2c_do_transfer(struct mt_i2c *i2c)
 
 	/* Prepare buffer data to start transfer */
 	if (isDMA == true && (!i2c->is_ccu_trig)) {
+		if (i2c_readl_dma(i2c, OFFSET_EN)) {
+			i2c_writel_dma(I2C_DMA_WARM_RST, i2c, OFFSET_RST);
+			udelay(5);
+		}
+
 #ifdef CONFIG_MTK_LM_MODE
 		if ((i2c->dev_comp->dma_support == 1) && (enable_4G())) {
 			i2c_writel_dma(0x1, i2c, OFFSET_TX_MEM_ADDR2);
@@ -1764,12 +1771,17 @@ static int mt_i2c_probe(struct platform_device *pdev)
 	if (IS_ERR(i2c->pdmabase))
 		return PTR_ERR(i2c->pdmabase);
 
-	i2c->gpiobase = devm_ioremap(&pdev->dev, i2c->gpio_start, i2c->mem_len);
-	if (IS_ERR(i2c->gpiobase)) {
+	if (i2c->gpio_start == 0) {
 		i2c->gpiobase = NULL;
 		dev_info(&pdev->dev, "do not have gpio baseaddress node\n");
+	} else {
+		i2c->gpiobase = devm_ioremap(&pdev->dev, i2c->gpio_start,
+			i2c->mem_len);
+		if (IS_ERR(i2c->gpiobase)) {
+			i2c->gpiobase = NULL;
+			dev_info(&pdev->dev, "gpio baseaddress remap fail\n");
+		}
 	}
-
 	i2c->irqnr = platform_get_irq(pdev, 0);
 	if (i2c->irqnr <= 0)
 		return -EINVAL;

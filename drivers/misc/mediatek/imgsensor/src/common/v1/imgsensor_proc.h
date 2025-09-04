@@ -19,8 +19,11 @@
 #include "imgsensor_common.h"
 
 #define PROC_CAMERA_INFO "driver/camera_info"
+#define PROC_SENSOR_STAT "driver/imgsensor_status_info"
+
 #define IMGSENSOR_STATUS_INFO_LENGTH 128
 #define camera_info_size 4096
+
 
 #define PROC_FSER_INFO "driver/s5k4h7yx_ser_info"
 
@@ -31,8 +34,10 @@
 #define camera_lsc_info_size 2048
 #define camera_wbc_info_size 1024
 
+
 extern char mtk_ccm_name[camera_info_size];
 extern struct IMGSENSOR *pgimgsensor;
+
 extern char fih_s5k4h7yx_sernum[20];
 
 extern char fih_s5k5e9yx_kbuffer[camera_info_size];

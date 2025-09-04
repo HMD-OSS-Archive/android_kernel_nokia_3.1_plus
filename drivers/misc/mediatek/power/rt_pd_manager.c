@@ -21,6 +21,7 @@
 #include <linux/pm_wakeup.h>
 #include <linux/reboot.h>
 #include <linux/pm.h>
+#include <linux/cpumask.h>
 
 #include "tcpm.h"
 
@@ -41,19 +42,6 @@
 
 static DEFINE_MUTEX(param_lock);
 
-struct pd_manager_info {
-	struct device *dev;
-	/* Charger Detection */
-	struct mutex chgdet_lock;
-	bool chgdet_en;
-	atomic_t chgdet_cnt;
-	wait_queue_head_t waitq;
-	struct kthread_work chgdet_task_threadfn;
-	struct task_struct *chgdet_task;
-};
-
-struct pd_manager_info *pmi;
-
 static struct tcpc_device *tcpc_dev;
 static struct notifier_block pd_nb;
 static int pd_sink_voltage_new;
@@ -73,11 +61,6 @@ static unsigned char vconn_on;
 static struct charger_device *primary_charger;
 static struct charger_consumer *chg_consumer;
 #endif
-
-static void tcpc_mt_power_off(void)
-{
-	kernel_power_off();
-}
 
 #if CONFIG_MTK_GAUGE_VERSION == 20
 #ifdef CONFIG_MTK_PUMP_EXPRESS_PLUS_30_SUPPORT
@@ -175,9 +158,6 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 					unsigned long event, void *data)
 {
 	struct tcp_notify *noti = data;
-	u32 vbus = 0;
-	int ret = 0;
-	int boot_mode = 0;
 
 	switch (event) {
 	case TCP_NOTIFY_SOURCE_VCONN:
@@ -260,83 +240,14 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 		break;
 	case TCP_NOTIFY_TYPEC_STATE:
 		if (noti->typec_state.old_state == TYPEC_UNATTACHED &&
-			(noti->typec_state.new_state == TYPEC_ATTACHED_SNK ||
-		    noti->typec_state.new_state == TYPEC_ATTACHED_CUSTOM_SRC ||
-		    noti->typec_state.new_state == TYPEC_ATTACHED_NORP_SRC)) {
-			pr_info("%s USB Plug in, pol = %d\n", __func__,
-					noti->typec_state.polarity);
-			charger_ignore_usb(false);
-			mutex_lock(&pmi->chgdet_lock);
-			pmi->chgdet_en = true;
-			atomic_inc(&pmi->chgdet_cnt);
-			wake_up(&pmi->waitq);
-			mutex_unlock(&pmi->chgdet_lock);
-#if CONFIG_MTK_GAUGE_VERSION == 20
-#ifdef CONFIG_MTK_PUMP_EXPRESS_PLUS_30_SUPPORT
-			mutex_lock(&pd_chr_mutex);
-			isCableIn = true;
-			updatechrdet = true;
-			wake_up_pd_chrdet();
-			mutex_unlock(&pd_chr_mutex);
-			pr_notice("TCP_NOTIFY_SINK_VBUS=> plug in");
-#endif
-#endif
-		} else if ((noti->typec_state.old_state == TYPEC_ATTACHED_SNK ||
-		    noti->typec_state.old_state == TYPEC_ATTACHED_CUSTOM_SRC ||
-			noti->typec_state.old_state == TYPEC_ATTACHED_NORP_SRC)
-			&& noti->typec_state.new_state == TYPEC_UNATTACHED) {
-			if (tcpc_kpoc) {
-				vbus = battery_get_vbus();
-				pr_info("%s KPOC Plug out, vbus = %d\n",
-					__func__, vbus);
-				tcpc_mt_power_off();
-				break;
-			}
-			pr_info("%s USB Plug out\n", __func__);
-			charger_ignore_usb(false);
-#if CONFIG_MTK_GAUGE_VERSION == 20
-#ifdef CONFIG_MTK_PUMP_EXPRESS_PLUS_30_SUPPORT
-			mutex_lock(&pd_chr_mutex);
-			isCableIn = false;
-			updatechrdet = true;
-			wake_up_pd_chrdet();
-			mutex_unlock(&pd_chr_mutex);
-			pr_notice("TCP_NOTIFY_SINK_VBUS=> plug out");
-#endif
-#endif
-			mutex_lock(&pmi->chgdet_lock);
-			pmi->chgdet_en = false;
-			atomic_inc(&pmi->chgdet_cnt);
-			wake_up(&pmi->waitq);
-			mutex_unlock(&pmi->chgdet_lock);
+			noti->typec_state.new_state == TYPEC_ATTACHED_AUDIO) {
+			/* AUDIO plug in */
+			pr_info("%s audio plug in\n", __func__);
 
-			boot_mode = get_boot_mode();
-			if (ret < 0) {
-				if (boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT
-				|| boot_mode == LOW_POWER_OFF_CHARGING_BOOT) {
-					pr_info("%s: notify chg detach fail, power off\n",
-						__func__);
-					kernel_power_off();
-				}
-			}
-		} else if (noti->typec_state.old_state == TYPEC_ATTACHED_SRC &&
-			noti->typec_state.new_state == TYPEC_ATTACHED_SNK) {
-			pr_info("%s Source_to_Sink\n", __func__);
-			charger_ignore_usb(true);
-			mutex_lock(&pmi->chgdet_lock);
-			pmi->chgdet_en = true;
-			atomic_inc(&pmi->chgdet_cnt);
-			wake_up(&pmi->waitq);
-			mutex_unlock(&pmi->chgdet_lock);
-		}  else if (noti->typec_state.old_state == TYPEC_ATTACHED_SNK &&
-			noti->typec_state.new_state == TYPEC_ATTACHED_SRC) {
-			pr_info("%s Sink_to_Source\n", __func__);
-			charger_ignore_usb(true);
-			mutex_lock(&pmi->chgdet_lock);
-			pmi->chgdet_en = false;
-			atomic_inc(&pmi->chgdet_cnt);
-			wake_up(&pmi->waitq);
-			mutex_unlock(&pmi->chgdet_lock);
+		} else if (noti->typec_state.old_state == TYPEC_ATTACHED_AUDIO
+			&& noti->typec_state.new_state == TYPEC_UNATTACHED) {
+			/* AUDIO plug out */
+			pr_info("%s audio plug out\n", __func__);
 		}
 		break;
 	case TCP_NOTIFY_PD_STATE:
@@ -356,76 +267,39 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 #endif
 		break;
 
-	case TCP_NOTIFY_HARD_RESET_STATE:
-		if (noti->hreset_state.state == TCP_HRESET_RESULT_DONE ||
-			noti->hreset_state.state == TCP_HRESET_RESULT_FAIL) {
-			charger_manager_enable_kpoc_shutdown(chg_consumer,
-				true);
-		} else if (noti->hreset_state.state == TCP_HRESET_SIGNAL_SEND ||
-			noti->hreset_state.state == TCP_HRESET_SIGNAL_RECV) {
-			charger_manager_enable_kpoc_shutdown(chg_consumer,
-				false);
-		}
-		break;
 	case TCP_NOTIFY_WD_STATUS:
 		pr_err("%s wd status = %d\n",
-		       __func__, noti->wd_status.water_detected);
-		break;
-	case TCP_NOTIFY_FOD_STATUS:
-		pr_err("%s fod status = %d\n", __func__, noti->fod_status.fod);
+			__func__, noti->wd_status.water_detected);
+
+		if (tcpc_kpoc) {
+			if (noti->wd_status.water_detected == true) {
+				pr_info("Water is detected in KPOC, disable HV charging\n");
+				charger_manager_enable_high_voltage_charging(
+					chg_consumer, false);
+			} else {
+				pr_info("Water is removed in KPOC, enable HV charging\n");
+				charger_manager_enable_high_voltage_charging(
+					chg_consumer, true);
+			}
+		}
 		break;
 	case TCP_NOTIFY_CABLE_TYPE:
-		pr_err("%s cable type = %d\n", __func__, noti->cable_type.type);
+		pr_info("%s cable type = %d\n", __func__,
+			noti->cable_type.type);
 		break;
-	case TCP_NOTIFY_TYPEC_OT:
-		pr_err("%s typec ot = %d\n", __func__, noti->typec_ot.ot);
+	case TCP_NOTIFY_PLUG_OUT:
+		pr_info("%s typec plug out\n", __func__);
+
+		if (tcpc_kpoc) {
+			pr_info("[%s] typec cable plug out, power off\n",
+				__func__);
+			kernel_power_off();
+		}
 		break;
 	default:
 		break;
 	};
 	return NOTIFY_OK;
-}
-
-static int chgdet_task_threadfn(void *data)
-{
-	struct pd_manager_info *pmi = data;
-	int ret = 0;
-
-	dev_info(pmi->dev, "%s: ++\n", __func__);
-	while (!kthread_should_stop()) {
-		ret = wait_event_interruptible(pmi->waitq,
-					     atomic_read(&pmi->chgdet_cnt) > 0);
-		if (ret < 0)
-			continue;
-		atomic_set(&pmi->chgdet_cnt, 0);
-		dev_dbg(pmi->dev, "%s: enter chgdet thread\n", __func__);
-		pm_stay_awake(pmi->dev);
-
-#ifdef CONFIG_MTK_EXTERNAL_CHARGER_TYPE_DETECT
-#if CONFIG_MTK_GAUGE_VERSION == 30
-		ret = charger_dev_enable_chg_type_det(primary_charger,
-						      pmi->chgdet_en);
-		if (ret < 0) {
-			dev_err(pmi->dev, "%s: en chgdet fail, en = %d\n",
-				__func__, pmi->chgdet_en);
-			goto out;
-		}
-#else
-		ret = mtk_chr_enable_chr_type_det(pmi->chgdet_en);
-		if (ret < 0) {
-			dev_err(pmi->dev, "%s: en chgdet fail(gm20), en = %d\n",
-				__func__, en);
-			goto out;
-		}
-#endif
-out:
-#else
-		mtk_pmic_enable_chr_type_det(pmi->chgdet_en);
-#endif
-		pm_relax(pmi->dev);
-	}
-	dev_info(pmi->dev, "%s: --\n", __func__);
-	return 0;
 }
 
 static int rt_pd_manager_probe(struct platform_device *pdev)
@@ -438,10 +312,6 @@ static int rt_pd_manager_probe(struct platform_device *pdev)
 		pr_err("%s devicd of node not exist\n", __func__);
 		return -ENODEV;
 	}
-	pmi = devm_kzalloc(&pdev->dev, sizeof(*pmi), GFP_KERNEL);
-	if (!pmi)
-		return -ENOMEM;
-	pmi->dev = &pdev->dev;
 
 	ret = get_boot_mode();
 	if (ret == KERNEL_POWER_OFF_CHARGING_BOOT ||
@@ -494,20 +364,6 @@ static int rt_pd_manager_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	/* Init Charger Detection */
-	mutex_init(&pmi->chgdet_lock);
-	atomic_set(&pmi->chgdet_cnt, 0);
-	init_waitqueue_head(&pmi->waitq);
-	device_init_wakeup(&pdev->dev, true);
-	pmi->chgdet_task = kthread_run(
-				chgdet_task_threadfn, pmi, "chgdet_thread");
-	ret = PTR_ERR_OR_ZERO(pmi->chgdet_task);
-	if (ret < 0) {
-		pr_err("%s: create chg det work fail\n", __func__);
-		return ret;
-	}
-	platform_set_drvdata(pdev, pmi);
-
 	pd_nb.notifier_call = pd_tcp_notifier_call;
 	ret = register_tcp_dev_notifier(tcpc_dev, &pd_nb, TCP_NOTIFY_TYPE_ALL);
 	if (ret < 0) {
@@ -536,14 +392,6 @@ static int rt_pd_manager_probe(struct platform_device *pdev)
 
 static int rt_pd_manager_remove(struct platform_device *pdev)
 {
-	struct pd_manager_info *pmi = platform_get_drvdata(pdev);
-
-	dev_info(pmi->dev, "%s\n", __func__);
-	if (pmi->chgdet_task) {
-		kthread_stop(pmi->chgdet_task);
-		atomic_inc(&pmi->chgdet_cnt);
-		wake_up(&pmi->waitq);
-	}
 	return 0;
 }
 

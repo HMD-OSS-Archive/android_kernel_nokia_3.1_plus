@@ -15,8 +15,6 @@
 
 #include <linux/string.h>
 
-#include <linux/slab.h>         /* needed by kmalloc */
-
 #include <linux/kthread.h>
 #include <linux/wait.h>
 #include <linux/spinlock.h>
@@ -24,7 +22,7 @@
 #include <linux/io.h>
 #include <linux/mutex.h>
 
-#ifdef CONFIG_MTK_TINYSYS_SCP_SUPPORT
+#ifdef CONFIG_MTK_AUDIO_CM4_SUPPORT
 #include <scp_ipi.h>
 #endif
 #ifdef CONFIG_MTK_DO /* TODO: check only once in one file */

@@ -38,6 +38,7 @@
 
 #include "s5k5e9qtmipiraw_Sensor.h"
 
+//shawn
 #define dual_cam 1
  
 /****************************Modify following Strings for debug****************************/
@@ -127,7 +128,7 @@ static imgsensor_info_struct imgsensor_info = {
 	.min_shutter = 5,
 	.max_frame_length = 0xffff,
 	.ae_shut_delay_frame = 0,
-	.ae_sensor_gain_delay_frame = 0, 
+	.ae_sensor_gain_delay_frame = 0, //shawn
 	.ae_ispGain_delay_frame = 2,
 	.frame_time_delay_frame = 1, /* The delay frame of setting frame length  */ //samsung modify from 2 to 1
 	.ihdr_support = 0,	  //1, support; 0,not support
@@ -144,7 +145,7 @@ static imgsensor_info_struct imgsensor_info = {
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
 	.mipi_sensor_type = MIPI_OPHY_NCSI2, //0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2
 	.mipi_settle_delay_mode = MIPI_SETTLEDELAY_AUTO,//0,MIPI_SETTLEDELAY_AUTO; 1,MIPI_SETTLEDELAY_MANNUAL
-	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_MONO, //modify dataformat for mono
+	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_MONO, //shawn modify dataformat for mono
 	//.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_Gr,
 	.mclk = 24,
 	.mipi_lane_num = SENSOR_MIPI_2_LANE,

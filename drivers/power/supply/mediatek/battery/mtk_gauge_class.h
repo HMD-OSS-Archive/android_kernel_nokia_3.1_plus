@@ -70,10 +70,30 @@ enum gauge_info {
 	GAUGE_MONITER_PLCHG_STATUS,
 	GAUGE_BAT_PLUG_STATUS,
 	GAUGE_IS_NVRAM_FAIL_MODE,
+	GAUGE_MONITOR_SOFF_VALIDTIME,
 	GAUGE_CON0_SOC,
 	GAUGE_SHUTDOWN_CAR,
 	GAUGE_INFO_MAX
 };
+
+enum gauge_event {
+	EVT_INT_CHR_FULL,
+	EVT_INT_ZCV,
+	EVT_INT_BAT_CYCLE,
+	EVT_INT_IAVG,
+	EVT_INT_BAT_PLUGOUT,
+	EVT_INT_NAFG,
+	EVT_INT_BAT_INT1_HT,
+	EVT_INT_BAT_INT1_LT,
+	EVT_INT_BAT_INT2_HT,
+	EVT_INT_BAT_INT2_LT,
+	EVT_INT_VBAT_L,
+	EVT_INT_VBAT_H,
+	EVT_INT_NAFG_CHECK,
+	EVB_PERIODIC_CHECK,
+	GAUGE_EVT_MAX
+};
+
 
 struct gauge_properties {
 	const char *alias_name;
@@ -220,6 +240,10 @@ struct gauge_ops {
 	int (*gauge_get_info)(
 		struct gauge_device *gauge_dev,
 		enum gauge_info ginfo, int *value);
+	int (*gauge_notify_event)(
+		struct gauge_device *gauge_dev,
+		enum gauge_event evt, int value);
+
 
 };
 
@@ -336,6 +360,8 @@ extern int gauge_dev_set_info(
 	struct gauge_device *gauge_dev, enum gauge_info ginfo, int value);
 extern int gauge_dev_get_info(
 	struct gauge_device *gauge_dev, enum gauge_info ginfo, int *value);
+extern int gauge_dev_notify_event(
+	struct gauge_device *gauge_dev, enum gauge_event evt, int value);
 
 #endif
 

@@ -376,7 +376,7 @@ static void __init setup_command_line(char *command_line)
 
 
 
-/* Begin*/
+/* Begin */
 char fih_skuid[8] = {'0'};
 bool fih_efuse_enable = 1;
 unsigned short fih_hwid = 0xFF;
@@ -409,7 +409,7 @@ unsigned short fih_gethwid(void)
 }
 EXPORT_SYMBOL(fih_gethwid);
 
-
+/*sunjie + for runin*/
 unsigned int fih_get_ramtest_result(void)
 {
     unsigned char result=0;
@@ -711,7 +711,7 @@ void fih_get_skuid(void)
 	strncpy(fih_skuid, p, 5);
 	//printk("fih_get_skuid fih_skuid = %s\n", fih_skuid);
 }
-/* END*/
+/* END */
 
 
 /*
@@ -853,13 +853,12 @@ asmlinkage __visible void __init start_kernel(void)
 	setup_command_line(command_line);
 	setup_nr_cpu_ids();
 	setup_per_cpu_areas();
-	boot_cpu_state_init();
 	smp_prepare_boot_cpu();	/* arch-specific boot-cpu hooks */
+	boot_cpu_hotplug_init();
 
 	build_all_zonelists(NULL, NULL);
 	page_alloc_init();
 
-	
 	fih_hwid = fih_gethwid();
 
 
@@ -871,6 +870,8 @@ asmlinkage __visible void __init start_kernel(void)
 	fih_get_skuid();
 
 	pr_notice("Kernel command line: %s\n", boot_command_line);
+	/* parameters may set static keys */
+	jump_label_init();
 	parse_early_param();
 	after_dashes = parse_args("Booting kernel",
 				  static_command_line, __start___param,
@@ -879,8 +880,6 @@ asmlinkage __visible void __init start_kernel(void)
 	if (!IS_ERR_OR_NULL(after_dashes))
 		parse_args("Setting init args", after_dashes, NULL, 0, -1, -1,
 			   NULL, set_init_arg);
-
-	jump_label_init();
 
 	/*
 	 * These use large bootmem allocations and must precede
@@ -908,6 +907,14 @@ asmlinkage __visible void __init start_kernel(void)
 		 "Interrupts were enabled *very* early, fixing it\n"))
 		local_irq_disable();
 	idr_init_cache();
+
+	/*
+	 * Allow workqueue creation and work item queueing/cancelling
+	 * early.  Work item execution depends on kthreads and starts after
+	 * workqueue_init().
+	 */
+	workqueue_init_early();
+
 	rcu_init();
 
 	/* trace_printk() and trace points may be used after this */
@@ -993,9 +1000,8 @@ asmlinkage __visible void __init start_kernel(void)
 	security_init();
 	dbg_late_init();
 	vfs_caches_init();
+	pagecache_init();
 	signals_init();
-	/* rootfs populating might need page-writeback */
-	page_writeback_init();
 	proc_root_init();
 	nsfs_init();
 	cpuset_init();
@@ -1287,7 +1293,7 @@ static int try_to_run_init_process(const char *init_filename)
 
 static noinline void __init kernel_init_freeable(void);
 
-#if defined(CONFIG_DEBUG_RODATA) || defined(CONFIG_SET_MODULE_RONX)
+#if defined(CONFIG_DEBUG_RODATA) || defined(CONFIG_DEBUG_SET_MODULE_RONX)
 bool rodata_enabled __ro_after_init = true;
 static int __init set_debug_rodata(char *str)
 {
@@ -1380,6 +1386,8 @@ static noinline void __init kernel_init_freeable(void)
 	cad_pid = task_pid(current);
 
 	smp_prepare_cpus(setup_max_cpus);
+
+	workqueue_init();
 
 	do_pre_smp_initcalls();
 	lockup_detector_init();

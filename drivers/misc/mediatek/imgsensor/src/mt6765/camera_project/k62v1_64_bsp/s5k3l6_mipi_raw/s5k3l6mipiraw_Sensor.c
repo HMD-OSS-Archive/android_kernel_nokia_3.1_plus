@@ -70,6 +70,7 @@
  //#define NONCONTINUEMODE
 /*===FEATURE SWITH===*/
 
+//shawn
 #define dual_cam 1
 
 /****************************Modify Following Strings for Debug****************************/
@@ -1735,12 +1736,10 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 
                 if (fih_3l6_awbaf_data[16] == 1 && fih_3l6_awbaf_data[17] == 2 && fih_3l6_awbaf_data[18] == 3) 
                 {
-                  
                     char pusendcmd[11] = {(char)(0x1a >> 8) , (char)(0x1a & 0xFF) ,0x50,0x99,0x99,0x64,0x52,0x9e,0x9d,0x66,0xdc};
                     iWriteRegI2C(pusendcmd , 11, 0xA0);
                     mdelay(5);
 
-                   
                     if (fih_3l6_awbaf_data != NULL) {
                         fih_read_eeprom_data(0xa, 25, fih_3l6_awbaf_data, 0xA0);
                         fih_read_eeprom_data(0x774, 9, fih_3l6_awbaf_data+25, 0xA0);
@@ -2786,6 +2785,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 					break;
 			}
 			break;
+		//shawn	
 		#if 0
 		case SENSOR_FEATURE_SET_PDAF:
 			LOG_INF("PDAF mode :%d\n", (kal_uint16 )(*feature_data));

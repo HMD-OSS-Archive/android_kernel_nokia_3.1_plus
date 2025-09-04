@@ -396,7 +396,7 @@ static void bmp_adjust(void *buf, int size, int w, int h)
 struct test_buf_info {
 	struct ion_client *ion_client;
 #ifdef CONFIG_MTK_M4U
-	m4u_client_t *m4u_client;
+	struct m4u_client_t *m4u_client;
 #endif
 	struct ion_handle *handle;
 	size_t size;
@@ -1194,11 +1194,13 @@ static void process_dbg_opt(const char *opt)
 	} else if (strncmp(opt, "lcm0_reset", 10) == 0) {
 		DISPCHECK("lcm0_reset\n");
 #if 1
-		DISP_CPU_REG_SET(DISP_REG_CONFIG_MMSYS_LCM_RST_B, 1);
-		msleep(20);
-		DISP_CPU_REG_SET(DISP_REG_CONFIG_MMSYS_LCM_RST_B, 0);
-		msleep(20);
-		DISP_CPU_REG_SET(DISP_REG_CONFIG_MMSYS_LCM_RST_B, 1);
+		if (pgc->state == DISP_ALIVE) {
+			DISP_CPU_REG_SET(DISP_REG_CONFIG_MMSYS_LCM_RST_B, 1);
+			msleep(20);
+			DISP_CPU_REG_SET(DISP_REG_CONFIG_MMSYS_LCM_RST_B, 0);
+			msleep(20);
+			DISP_CPU_REG_SET(DISP_REG_CONFIG_MMSYS_LCM_RST_B, 1);
+		}
 #else
 #ifdef CONFIG_MTK_LEGACY
 		mt_set_gpio_mode(GPIO106 | 0x80000000, GPIO_MODE_00);

@@ -234,56 +234,6 @@ static int mtkfb_release(struct fb_info *info, int user)
 	return 0;
 }
 
-/* Store a single color palette entry into a pseudo palette or the hardware
- * palette if one is available. For now we support only 16bpp and thus store
- * the entry only to the pseudo palette.
- */
-static int mtkfb_setcolreg(u_int regno, u_int red, u_int green,
-	u_int blue, u_int transp, struct fb_info *info)
-{
-	int r = 0;
-	unsigned int bpp, m;
-
-	NOT_REFERENCED(transp);
-
-	MSG_FUNC_ENTER();
-
-	bpp = info->var.bits_per_pixel;
-	m = 1 << bpp;
-	if (regno >= m) {
-		r = -EINVAL;
-		goto exit;
-	}
-
-	switch (bpp) {
-	case 16:
-		/* RGB 565 */
-		((u32 *) (info->pseudo_palette))[regno] =
-		    ((red & 0xF800) | ((green & 0xFC00) >> 5) |
-		    ((blue & 0xF800) >> 11));
-		break;
-	case 32:
-		/* ARGB8888 */
-		((u32 *) (info->pseudo_palette))[regno] =
-		    (0xff000000) |
-		    ((red & 0xFF00) << 8) | ((green & 0xFF00)) |
-		    ((blue & 0xFF00) >> 8);
-		break;
-
-		/* TODO: RGB888, BGR888, ABGR8888 */
-
-	default:
-		DISPERR("set color info fail,bpp=%d\n", bpp);
-		ASSERT(0);
-		r = -EINVAL;
-	}
-
-exit:
-	MSG_FUNC_LEAVE();
-	return r;
-}
-
-#if defined(CONFIG_PM_AUTOSLEEP)
 #if defined(CONFIG_MTK_DUAL_DISPLAY_SUPPORT) && \
 	(CONFIG_MTK_DUAL_DISPLAY_SUPPORT == 2)
 static int mtkfb1_blank(int blank_mode, struct fb_info *info)
@@ -356,7 +306,6 @@ static int mtkfb_blank(int blank_mode, struct fb_info *info)
 
 	return 0;
 }
-#endif
 
 int mtkfb_set_backlight_level(unsigned int level)
 {
@@ -1001,7 +950,7 @@ unsigned int mtkfb_fm_auto_test(void)
 	struct fb_var_screeninfo var;
 
 	int idle_state_backup =
-		disp_helper_get_option(DISP_OPT_IDLE_MGR);
+		disp_helper_get_option(DISP_OPT_IDLEMGR_ENTER_ULPS);
 
 	if (primary_display_is_sleepd()) {
 		DISPWARN("primary display path is already sleep, skip\n");
@@ -1010,7 +959,7 @@ unsigned int mtkfb_fm_auto_test(void)
 
 	if (idle_state_backup) {
 		primary_display_idlemgr_kick(__func__, 0);
-		disp_helper_set_option(DISP_OPT_IDLE_MGR, 0);
+		disp_helper_set_option(DISP_OPT_IDLEMGR_ENTER_ULPS, 0);
 	}
 	fbVirAddr = (unsigned long)fbdev->fb_va_base;
 	fb_buffer = (unsigned int *)fbVirAddr;
@@ -1043,11 +992,11 @@ unsigned int mtkfb_fm_auto_test(void)
 
 	mtkfb_pan_display_impl(&mtkfb_fbi->var, mtkfb_fbi);
 	msleep(100);
-
+	primary_display_idlemgr_kick(__func__, 0);
 	result = primary_display_lcm_ATA();
 
 	if (idle_state_backup)
-		disp_helper_set_option(DISP_OPT_IDLE_MGR, idle_state_backup);
+		disp_helper_set_option(DISP_OPT_IDLEMGR_ENTER_ULPS, 1);
 
 	if (result == 0)
 		DISPERR("ATA LCM failed\n");
@@ -1234,6 +1183,7 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd,
 	}
 	case MTKFB_CAPTURE_FRAMEBUFFER:
 	{
+#if 0 /* comment this for iofuzzer security issue */
 		unsigned long *src_pbuf = 0;
 		unsigned int pixel_bpp = primary_display_get_bpp() / 8;
 		unsigned int fbsize = DISP_GetScreenHeight() *
@@ -1260,10 +1210,12 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd,
 			r = -EFAULT;
 		}
 		vfree(src_pbuf);
+#endif
 		return r;
 	}
 	case MTKFB_SLT_AUTO_CAPTURE:
 	{
+#if 0 /* please open this when need SLT */
 		struct fb_slt_catpure capConfig;
 		unsigned long *src_pbuf = 0;
 		unsigned int format;
@@ -1320,6 +1272,7 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd,
 			r = -EFAULT;
 		}
 		vfree(src_pbuf);
+#endif
 		return r;
 	}
 	case MTKFB_GET_OVERLAY_LAYER_INFO:
@@ -1909,7 +1862,6 @@ static struct fb_ops mtkfb_ops = {
 	.owner = THIS_MODULE,
 	.fb_open = mtkfb_open,
 	.fb_release = mtkfb_release,
-	.fb_setcolreg = mtkfb_setcolreg,
 	.fb_pan_display = mtkfb_pan_display_proxy,
 	.fb_fillrect = cfb_fillrect,
 	.fb_copyarea = cfb_copyarea,
@@ -1921,9 +1873,7 @@ static struct fb_ops mtkfb_ops = {
 #ifdef CONFIG_COMPAT
 	.fb_compat_ioctl = mtkfb_compat_ioctl,
 #endif
-#if defined(CONFIG_PM_AUTOSLEEP)
 	.fb_blank = mtkfb_blank,
-#endif
 };
 
 #if defined(CONFIG_MTK_DUAL_DISPLAY_SUPPORT) && \
@@ -1945,9 +1895,7 @@ static struct fb_ops mtkfb1_ops = {
 #ifdef CONFIG_COMPAT
 	.fb_compat_ioctl = NULL,
 #endif
-#if defined(CONFIG_PM_AUTOSLEEP)
 	.fb_blank = mtkfb1_blank,
-#endif
 };
 #endif
 /*

@@ -443,16 +443,15 @@ void vdec_power_off(void)
 {
 
 	mutex_lock(&VdecPWRLock);
-	/* cervino VCODEC_SEL reset */
-	do {
-		VDO_HW_WRITE(KVA_VDEC_GCON_BASE + 0x20, 0);
-	} while (VDO_HW_READ(KVA_VDEC_GCON_BASE + 0x20) != 0);
-
 	if (gu4VdecPWRCounter == 0) {
 		pr_debug("[VCODEC] gu4VdecPWRCounter = 0\n");
 	} else {
-
 		vdec_polling_status();
+		/* VCODEC_SEL reset */
+		do {
+			VDO_HW_WRITE(KVA_VDEC_GCON_BASE + 0x20, 0);
+		} while (VDO_HW_READ(KVA_VDEC_GCON_BASE + 0x20) != 0);
+
 		gu4VdecPWRCounter--;
 
 		clk_disable_unprepare(clk_MT_CG_VDEC);
@@ -627,6 +626,11 @@ void vdec_break(void)
 	/* Step 3: software reset */
 	VDO_HW_WRITE(KVA_VDEC_BASE + 66*4, 0x1);
 	VDO_HW_WRITE(KVA_VDEC_BASE + 66*4, 0x0);
+
+	/* Step 4: VCODEC reset control, include VDEC/VENC/JPGENC */
+	VDO_HW_WRITE(KVA_VDEC_GCON_BASE + 5*4, 0x1);
+	VDO_HW_WRITE(KVA_VDEC_GCON_BASE + 3*4, 0x1);
+
 }
 
 void venc_break(void)
@@ -1066,18 +1070,7 @@ static long vcodec_lockhw_vdec(struct VAL_HW_LOCK_T *pHWLock, char *bLockedHW)
 			 */
 
 			*bLockedHW = VAL_TRUE;
-			if (eValRet == VAL_RESULT_INVALID_ISR &&
-				FirstUseDecHW != 1) {
-				pr_info("[WARN] reset pwr/irq when HWLock");
-#ifdef CONFIG_PM
-				pm_runtime_put_sync(vcodec_device);
-#else
-#ifndef KS_POWER_WORKAROUND
-				vdec_power_off();
-#endif
-#endif
-				disable_irq(VDEC_IRQ_ID);
-			}
+
 #ifdef VCODEC_DVFS_V2
 			mutex_lock(&VcodecDVFSLock);
 			if (cur_job == 0) {
@@ -3429,8 +3422,8 @@ static int __init vcodec_driver_init(void)
 
 	/* HWLockEvent part */
 	mutex_lock(&HWLockEventTimeoutLock);
-	HWLockEvent.pvHandle = "DECHWLOCK_EVENT";
-	HWLockEvent.u4HandleSize = sizeof("DECHWLOCK_EVENT")+1;
+	HWLockEvent.pvHandle = "VCODECHWLOCK_EVENT";
+	HWLockEvent.u4HandleSize = sizeof("VCODECHWLOCK_EVENT")+1;
 	HWLockEvent.u4TimeoutMs = 1;
 	mutex_unlock(&HWLockEventTimeoutLock);
 	eValHWLockRet = eVideoCreateEvent(&HWLockEvent,
@@ -3439,21 +3432,7 @@ static int __init vcodec_driver_init(void)
 		/* Add one line comment for avoid kernel coding style,
 		 * WARNING:BRACES:
 		 */
-		pr_info("[VCODEC][ERROR] create dec hwlock event error\n");
-	}
-
-	mutex_lock(&HWLockEventTimeoutLock);
-	HWLockEvent.pvHandle = "ENCHWLOCK_EVENT";
-	HWLockEvent.u4HandleSize = sizeof("ENCHWLOCK_EVENT")+1;
-	HWLockEvent.u4TimeoutMs = 1;
-	mutex_unlock(&HWLockEventTimeoutLock);
-	eValHWLockRet = eVideoCreateEvent(&HWLockEvent,
-					sizeof(struct VAL_EVENT_T));
-	if (eValHWLockRet != VAL_RESULT_NO_ERROR) {
-		/* Add one line comment for avoid kernel coding style,
-		 * WARNING:BRACES:
-		 */
-		pr_info("[VCODEC][ERROR] create enc hwlock event error\n");
+		pr_info("[VCODEC][ERROR] create vcodec hwlock event error\n");
 	}
 
 #ifdef VCODEC_DVFS_V2

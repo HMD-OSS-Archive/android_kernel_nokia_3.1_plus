@@ -148,7 +148,7 @@ int mtk_pinctrl_update_gpio_value(struct mtk_pinctrl *pctl, int pin,
 int mtk_pinctrl_get_gpio_value(struct mtk_pinctrl *pctl,
 	int pin, int size, const struct mtk_pin_info pin_info[])
 {
-	unsigned int reg_value, reg_get_addr;
+	unsigned int reg_value = 0, reg_get_addr;
 	const struct mtk_pin_info *spec_pin_info;
 	struct regmap *regmap;
 	unsigned char bit_width, reg_bit;
@@ -1469,9 +1469,6 @@ static int mtk_pullen_get(struct gpio_chip *chip, unsigned int offset)
 	if (pctl->devdata->mtk_pctl_get_pull_en)
 		return pctl->devdata->mtk_pctl_get_pull_en(pctl, offset);
 
-	if (!pctl->devdata->spec_pull_get)
-		return -1;
-
 	if (pctl->devdata->spec_pull_get) {
 		samereg = pctl->devdata->spec_pull_get(
 			mtk_get_regmap(pctl, offset), offset);
@@ -1528,9 +1525,6 @@ static int mtk_pullsel_get(struct gpio_chip *chip, unsigned int offset)
 
 	if (pctl->devdata->mtk_pctl_get_pull_sel)
 		return pctl->devdata->mtk_pctl_get_pull_sel(pctl, offset);
-
-	if (!pctl->devdata->spec_pull_get)
-		return -1;
 
 	if (pctl->devdata->spec_pull_get) {
 		pull_sel = pctl->devdata->spec_pull_get(

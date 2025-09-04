@@ -233,6 +233,8 @@ static int mtk_thermal_get_tz_idx(char *type)
 		return MTK_THERMAL_SENSOR_XTAL;
 	else if (strncmp(type, "mtktsbtsmdpa", 12) == 0)
 		return MTK_THERMAL_SENSOR_MD_PA;
+	else if (strncmp(type, "mtktsdctm", 9) == 0)
+		return MTK_THERMAL_SENSOR_DCTM;
 
 	return -1;
 }
@@ -676,8 +678,10 @@ static int _mtkthermal_tz_read(struct seq_file *m, void *v)
 			int fake_temp = 0;
 
 			tzdata = tz->devdata;
-			if (!tzdata)
+			if (!tzdata) {
 				WARN_ON_ONCE(1);
+				return 0;
+			}
 
 #if (MAX_STEP_MA_LEN > 1)
 			mutex_lock(&tzdata->ma_lock);
@@ -743,8 +747,10 @@ static ssize_t _mtkthermal_tz_write
 			struct mtk_thermal_tz_data *tzdata = NULL;
 
 			tzdata = tz->devdata;
-			if (!tzdata)
+			if (!tzdata) {
 				WARN_ON_ONCE(1);
+				return -EINVAL;
+			}
 
 			/* THRML_ERROR_LOG(
 			 * "%s trailing=%s\n", __func__, trailing);
@@ -800,8 +806,10 @@ static ssize_t _mtkthermal_tz_write
 			struct mtk_thermal_tz_data *tzdata = NULL;
 
 			tzdata = tz->devdata;
-			if (!tzdata)
+			if (!tzdata) {
 				WARN_ON_ONCE(1);
+				return -EINVAL;
+			}
 
 			mutex_lock(&tzdata->ma_lock);
 			tzdata->fake_temp = (long)arg_val;

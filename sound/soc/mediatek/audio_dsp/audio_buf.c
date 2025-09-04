@@ -266,8 +266,12 @@ void RingBuf_writeDataValue(struct RingBuf *RingBuf1, const char value,
 
 void RingBuf_update_writeptr(struct RingBuf *RingBuf1, unsigned int count)
 {
-	if (count == 0)
+	if (count == 0 || count > RingBuf1->bufLen) {
+		AUD_LOG_W("%s count[%u] datacount[%d] Len[%d]\n",
+			  __func__, count,
+			  RingBuf1->datacount, RingBuf1->bufLen);
 		return;
+	}
 
 	if (RingBuf1->pRead <= RingBuf1->pWrite) {
 		unsigned int w2e = RingBuf1->pBufEnd - RingBuf1->pWrite;
@@ -306,8 +310,12 @@ void RingBuf_update_writeptr(struct RingBuf *RingBuf1, unsigned int count)
 
 void RingBuf_update_readptr(struct RingBuf *RingBuf1, unsigned int count)
 {
-	if (count == 0)
+	if (count == 0 || count > RingBuf1->bufLen) {
+		AUD_LOG_W("%s count[%u] datacount[%d] Len[%d]\n",
+			  __func__, count,
+			  RingBuf1->datacount, RingBuf1->bufLen);
 		return;
+	}
 
 	if (RingBuf1->pRead <= RingBuf1->pWrite) {
 		RingBuf1->pRead += count;
@@ -535,12 +543,15 @@ int set_audiobuffer_attribute(struct audio_hw_buffer *audio_hwbuf,
 {
 	int ret = 0;
 
+	if (params == NULL)
+		return 0;
+
 	audio_hwbuf->aud_buffer.buffer_attr.channel = params_channels(params);
 	audio_hwbuf->aud_buffer.buffer_attr.format = params_format(params);
 	audio_hwbuf->aud_buffer.buffer_attr.rate = params_rate(params);
 	audio_hwbuf->aud_buffer.buffer_attr.direction = direction;
 
-	AUD_LOG_D("%s ch = %u fmt = %u rate = %u\n dir = %d",
+	AUD_LOG_D("%s ch = %u fmt = %u rate = %u dir = %d\n",
 		  __func__,
 		  audio_hwbuf->aud_buffer.buffer_attr.channel,
 		  audio_hwbuf->aud_buffer.buffer_attr.format,

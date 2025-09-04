@@ -647,7 +647,7 @@ static int primary_show_basic_debug_info(struct disp_frame_cfg_t *cfg)
 		primary_display_is_video_mode() ? "vdo," : "cmd,");
 	screen_logger_add_message("mode", MESSAGE_REPLACE, disp_tmp);
 
-	for (i = 0; TOTAL_OVL_LAYER_NUM; i++) {
+	for (i = 0; i < cfg->input_layer_num; i++) {
 		if (cfg->input_cfg[i].tgt_offset_y == 0 &&
 		    cfg->input_cfg[i].layer_enable) {
 			dst_layer_id =
@@ -2195,6 +2195,12 @@ static int _DC_switch_to_DL_fast(int block)
 	/* copy ovl config from DC handle to DL handle */
 	memcpy(data_config_dl->ovl_config, data_config_dc->ovl_config,
 		sizeof(data_config_dl->ovl_config));
+	memcpy(&data_config_dl->rsz_enable, &data_config_dc->rsz_enable,
+		sizeof(data_config_dc->rsz_enable));
+	memcpy(&data_config_dl->rsz_src_roi, &data_config_dc->rsz_src_roi,
+		sizeof(data_config_dc->rsz_src_roi));
+	memcpy(&data_config_dl->rsz_dst_roi, &data_config_dc->rsz_dst_roi,
+		sizeof(data_config_dc->rsz_dst_roi));
 	/* before power off, we should wait wdma0_eof first!!! */
 	_cmdq_flush_config_handle_mira(pgc->cmdq_handle_ovl1to2_config, 1);
 	cmdqRecReset(pgc->cmdq_handle_ovl1to2_config);
@@ -3091,7 +3097,7 @@ static int _Interface_fence_release_callback(unsigned long userdata)
 
 #ifdef _DEBUG_DITHER_HANG_
 	if (primary_display_is_video_mode()) {
-		unsigned int status;
+		unsigned int status = 0;
 
 		cmdqBackupReadSlot(pgc->dither_status_info, 0, &status);
 		if ((status) != 0x10001) {
@@ -6780,6 +6786,7 @@ static int primary_frame_cfg_input(struct disp_frame_cfg_t *cfg)
 				m_ccorr_config.mode);
 
 			/* backup night params here */
+			mem_config.m_ccorr_config = m_ccorr_config;
 			cmdqRecBackupUpdateSlot(cmdq_handle,
 				pgc->night_light_params, 0,
 				mem_config.m_ccorr_config.mode);
@@ -8386,7 +8393,7 @@ int primary_display_capture_framebuffer_ovl(unsigned long pbuf,
 	disp_ion_get_mva(ion_display_client, ion_display_handle,
 		&mva, DISP_M4U_PORT_DISP_WDMA0);
 	disp_ion_cache_flush(ion_display_client, ion_display_handle,
-		ION_CACHE_FLUSH_ALL);
+			     ION_CACHE_FLUSH_BY_RANGE);
 
 	tmp = disp_helper_get_option(DISP_OPT_SCREEN_CAP_FROM_DITHER);
 	if (tmp == 0)
@@ -8398,7 +8405,7 @@ int primary_display_capture_framebuffer_ovl(unsigned long pbuf,
 		_screen_cap_by_cpu((unsigned int)mva, ufmt, after_eng);
 
 	disp_ion_cache_flush(ion_display_client, ion_display_handle,
-		ION_CACHE_INVALID_BY_RANGE);
+		ION_CACHE_FLUSH_BY_RANGE);
 
 out:
 	if (ion_display_client)
@@ -8425,7 +8432,7 @@ int primary_display_capture_framebuffer_ovl(unsigned long pbuf,
 	int buffer_size = h_yres * w_xres * pixel_byte;
 	enum DISP_MODULE_ENUM after_eng = DISP_MODULE_OVL0;
 	int tmp;
-	m4u_client_t *m4uClient = NULL;
+	struct m4u_client_t *m4uClient = NULL;
 	unsigned int mva = 0;
 #endif
 	DISPMSG("primary capture: begin\n");
@@ -8472,7 +8479,7 @@ int primary_display_capture_framebuffer_ovl(unsigned long pbuf,
 		_screen_cap_by_cpu(mva, ufmt, after_eng);
 
 	ret = m4u_cache_sync(m4uClient, DISP_M4U_PORT_DISP_WDMA0, pbuf,
-			     buffer_size, mva, M4U_CACHE_INVALID_BY_RANGE);
+			     buffer_size, mva, M4U_CACHE_FLUSH_BY_RANGE);
 
 out:
 	if (mva > 0)

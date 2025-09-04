@@ -123,6 +123,7 @@ static u32 target_clk;
 #endif
 
 #include <archcounter_timesync.h>
+#include <ccu_inc.h>
 
 /*  */
 #ifndef MTRUE
@@ -133,7 +134,7 @@ static u32 target_clk;
 #endif
 
 #define ISP_DEV_NAME           "camera-isp"
-#define SMI_LARB_MMU_CTL       (0)
+#define SMI_LARB_MMU_CTL       (1)
 
 /*#define ENABLE_WAITIRQ_LOG*/       /* wait irq debug logs */
 /*#define ENABLE_STT_IRQ_LOG*/       /*show STT irq debug logs */
@@ -4386,11 +4387,6 @@ static signed int ISP_WriteReg(struct ISP_REG_IO_STRUCT *pRegIo)
 	/* unsigned char* pData = NULL; */
 	struct ISP_REG_STRUCT *pData = NULL;
 
-	if (pRegIo == NULL) {
-		pr_err("pRegIo null pointer");
-		Ret = -EFAULT;
-		goto EXIT;
-	}
 	if (pRegIo->Count > 0xFFFFFFFF) {
 		pr_err("pRegIo->Count error");
 		Ret = -EFAULT;
@@ -7033,7 +7029,6 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 	}
 	/*  */
 	pUserInfo = (struct ISP_USER_INFO_STRUCT *)(pFile->private_data);
-	memset((void *)&ispclks, 0, sizeof(ispclks));
 	/*  */
 	switch (Cmd) {
 	case ISP_WAKELOCK_CTRL:
@@ -8033,33 +8028,42 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 
 	case ISP_TRANSFOR_CCU_REG:
 		{
-                       unsigned int hwTickCnt[2];
-                       unsigned int globaltime[2];
-                       unsigned long long reg_trans_Time;
-                       unsigned long long sum;
-                       if (copy_from_user(hwTickCnt, (void *)Param,
-                               sizeof(unsigned int)*2) == 0) {
-                           pr_debug("hwTickCnt[0]:%u , hwTickCnt[1]:%u",hwTickCnt[0], hwTickCnt[1]);
-                           sum =
-                               (unsigned long long)hwTickCnt[0] +
-                                ((unsigned long long)hwTickCnt[1]<<32);
-                           pr_debug("sum of hwTickCnt:%llu", sum);
-                           reg_trans_Time =
-                               archcounter_timesync_to_boot(sum);
-                           globaltime[1] =
-                           do_div(reg_trans_Time, 1000000000);
-                           globaltime[1] = globaltime[1]/1000;
-                           globaltime[0] = reg_trans_Time;
-                           pr_debug("sec:%u , usec:%u",
-                           globaltime[0], globaltime[1]);
-                           if (copy_to_user((void *)Param,
-                                globaltime,
-                                sizeof(unsigned int)*2) != 0) {
-                               Ret = -EFAULT;
-                            }
-                    } else {
-                        Ret = -EFAULT;
-                    }
+			uint32_t hwTickCnt_ccu_direct[2];
+			unsigned int globaltime[2];
+			unsigned long long reg_trans_Time;
+			unsigned long long sum;
+
+			ccu_get_timestamp(&hwTickCnt_ccu_direct[0],
+				&hwTickCnt_ccu_direct[1]);
+
+			pr_debug("hwTickCnt_ccu_direct[0]:%u,hwTickCnt_ccu_direct[1]:%u",
+				hwTickCnt_ccu_direct[0],
+				hwTickCnt_ccu_direct[1]);
+
+			sum =
+			(unsigned long long)hwTickCnt_ccu_direct[0] +
+			((unsigned long long)hwTickCnt_ccu_direct[1]<<32);
+
+			pr_debug("sum of hwTickCnt:%llu", sum);
+
+			if (sum == 0) {
+				globaltime[0] = 0;
+				globaltime[1] = 0;
+			} else {
+				reg_trans_Time =
+					archcounter_timesync_to_boot(sum);
+				globaltime[1] =
+					do_div(reg_trans_Time, 1000000000);
+				globaltime[1] =
+					globaltime[1]/1000;
+				globaltime[0] =
+					reg_trans_Time;
+			}
+
+			if (copy_to_user((void *)Param, globaltime,
+				sizeof(unsigned int)*2) != 0) {
+				Ret = -EFAULT;
+			}
 		}
 		break;
 
@@ -8134,7 +8138,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 	case ISP_GET_SUPPORTED_ISP_CLOCKS:
 		{
 			int result = 0;
-			u64 freq_steps[ISP_CLK_LEVEL_CNT];
+			u64 freq_steps[ISP_CLK_LEVEL_CNT] = {0};
 
 			/* Call mmdvfs_qos_get_freq_steps
 			 * to get supported frequency

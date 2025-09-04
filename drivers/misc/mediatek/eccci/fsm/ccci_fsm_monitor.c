@@ -19,6 +19,18 @@ static char *fsm_monitor_name[MAX_MD_NUM] = {
 	"ccci3_monitor",
 };
 
+static int mdinit_killed;
+
+static void set_mdinit_killed(int killed)
+{
+	mdinit_killed = killed;
+}
+
+int get_mdinit_killed(void)
+{
+	return mdinit_killed;
+}
+
 static int dev_char_open(struct inode *inode, struct file *file)
 {
 	struct ccci_fsm_ctl *ctl = NULL;
@@ -44,7 +56,7 @@ static int dev_char_close(struct inode *inode, struct file *file)
 {
 	struct ccci_fsm_monitor *monitor_ctl = file->private_data;
 	struct sk_buff *skb = NULL;
-	int clear_cnt = 0;
+	int clear_cnt = 0, ret = 0;
 
 	atomic_dec(&monitor_ctl->usage_cnt);
 	while ((skb = ccci_skb_dequeue(&monitor_ctl->rx_skb_list)) != NULL) {
@@ -53,6 +65,12 @@ static int dev_char_close(struct inode *inode, struct file *file)
 	}
 	CCCI_NORMAL_LOG(monitor_ctl->md_id, FSM,
 		"monitor close, clear_cnt=%d\n", clear_cnt);
+
+	set_mdinit_killed(1);
+
+	ret = force_md_stop(monitor_ctl);
+	if (ret)
+		CCCI_ERROR_LOG(monitor_ctl->md_id, FSM, "force stop MD fail\n");
 	return 0;
 }
 

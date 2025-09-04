@@ -11,7 +11,7 @@
  * GNU General Public License for more details.
  */
 
-#define UT_LOG(fmt...) pr_debug("[GZTEST]" fmt)
+#define UT_LOG(fmt...) pr_info("[GZTEST]" fmt)
 
 #define INIT_UNITTESTS                                                         \
 	static uint _uts_total;                                                \
@@ -31,7 +31,7 @@
 		if (_uts_failed > 0) {                                         \
 			UT_LOG("===========> UT FAILED\n");                    \
 		} else {                                                       \
-			UT_LOG("===========> UT SUCCESSED\n");                 \
+			UT_LOG("===========> UT SUCCEEDED\n");                 \
 		}                                                              \
 	}
 
@@ -40,7 +40,7 @@
  */
 #define TEST_BEGIN(name)                                                       \
 	bool _success = true;                                                  \
-	const char *_test = name
+	char *_test = name
 
 
 #define TEST_END                                                               \
@@ -50,7 +50,6 @@
 		else                                                           \
 			UT_LOG("%s: FAILED\n", _test);                         \
 	}
-
 /*
  * CHECK_* macros to check test results.
  */

@@ -136,9 +136,22 @@ struct IMGSENSOR_HW_POWER_INFO {
 	u32  pin_off_delay;
 };
 
+struct IMGSENSOR_HW_POWER_INFO_SENSOR {
+	enum PowerType       pin;
+	enum Voltage pin_state_on;
+	u32  pin_on_delay;
+	enum Voltage pin_state_off;
+	u32  pin_off_delay;
+};
+
 struct IMGSENSOR_HW_POWER_SEQ {
 	char                   *idx;
 	struct IMGSENSOR_HW_POWER_INFO pwr_info[IMGSENSOR_HW_POWER_INFO_MAX];
+};
+
+struct IMGSENSOR_HW_POWER_SEQ_SENSOR {
+	char                   *idx;
+	struct IMGSENSOR_HW_POWER_INFO_SENSOR pwr_info[IMGSENSOR_HW_POWER_INFO_MAX];
 };
 
 struct IMGSENSOR_HW_DEVICE {
@@ -155,7 +168,7 @@ struct IMGSENSOR_HW_DEVICE {
 
 extern struct IMGSENSOR_HW_CFG       imgsensor_custom_config[];
 extern struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[];
-extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[];
+extern struct IMGSENSOR_HW_POWER_SEQ_SENSOR sensor_power_sequence[];
 extern enum IMGSENSOR_RETURN
 	(*hw_open[IMGSENSOR_HW_ID_MAX_NUM])(struct IMGSENSOR_HW_DEVICE **);
 

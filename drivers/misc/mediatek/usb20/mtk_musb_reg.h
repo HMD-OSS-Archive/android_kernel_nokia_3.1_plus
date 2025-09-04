@@ -498,6 +498,19 @@ static inline void musb_write_txfunaddr(void __iomem *mbase,
 	musb_writew(mbase, MUSB_TXFUNCADDR + 8 * epnum, qh_addr_reg);
 }
 
+static inline void musb_write_txfunaddr_split(void __iomem *mbase,
+						u8 epnum, u8 qh_addr_reg,
+						u16 offset)
+{
+	u16 new_qh_addr_reg  = (qh_addr_reg | offset);
+
+	DBG(4, "%s ep%d 0x%X 0x%X 0x%x\n", __func__, epnum, qh_addr_reg,
+							new_qh_addr_reg,
+							offset);
+
+	musb_writew(mbase, MUSB_TXFUNCADDR + 8 * epnum, new_qh_addr_reg);
+}
+
 static inline void musb_write_txhubaddr(void __iomem *mbase,
 						u8 epnum, u8 qh_h_addr_reg)
 {

@@ -26,6 +26,7 @@
 #include "aed.h"
 #include <mt-plat/mrdump.h>
 #include <mrdump_private.h>
+#include <log_store_kernel.h>
 
 #if defined(CONFIG_ARM_PSCI) || defined(CONFIG_ARM64)
 #include <mt-plat/mtk_secure_api.h>
@@ -374,6 +375,16 @@ static ssize_t proc_generate_oops_write(struct file *file,
 		pr_notice("%s: error\n", __func__);
 		return -EFAULT;
 	}
+
+	if (strncmp(msg, "aee1", 4) == 0) {
+		set_emmc_config(KEDUMP_CTL, KEDUMP_ENABLE);
+		pr_info("kedump enabled\n");
+		return size;
+	} else if (strncmp(msg, "aee0", 4) == 0) {
+		set_emmc_config(KEDUMP_CTL, KEDUMP_DISABLE);
+		pr_info("kedump disabled\n");
+		return size;
+	}
 	test_case = (unsigned int)msg[0] - '0';
 	test_subcase = (unsigned int)msg[2] - '0';
 	test_cpu = (unsigned int)msg[4] - '0';
@@ -649,15 +660,15 @@ static ssize_t proc_generate_kernel_notify_write(struct file *file,
 
 	switch (msg[0]) {
 	case 'R':
-		aee_kernel_reminding(&msg[2], colon_ptr + 1);
+		aee_kernel_reminding(&msg[2], "Hello World[Error]");
 		break;
 
 	case 'W':
-		aee_kernel_warning(&msg[2], colon_ptr + 1);
+		aee_kernel_warning(&msg[2], "Hello World[Error]");
 		break;
 
 	case 'E':
-		aee_kernel_exception(&msg[2], colon_ptr + 1);
+		aee_kernel_exception(&msg[2], "Hello World[Error]");
 		break;
 
 	default:

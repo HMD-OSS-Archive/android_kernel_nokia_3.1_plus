@@ -103,7 +103,7 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[] = {
 #ifdef MIPI_SWITCH
 	{
-		IMGSENSOR_SENSOR_IDX_NAME_SUB,
+		IMGSENSOR_TOSTRING(IMGSENSOR_SENSOR_IDX_SUB),
 		{
 			{
 				IMGSENSOR_HW_PIN_MIPI_SWITCH_EN,
@@ -122,7 +122,7 @@ struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[] = {
 		}
 	},
 	{
-		IMGSENSOR_SENSOR_IDX_NAME_MAIN2,
+		IMGSENSOR_TOSTRING(IMGSENSOR_SENSOR_IDX_MAIN2),
 		{
 			{
 				IMGSENSOR_HW_PIN_MIPI_SWITCH_EN,
@@ -147,6 +147,97 @@ struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[] = {
 
 /* Legacy design */
 struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
+/* GC */
+#if defined(GC5035_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_GC5035MIPI_RAW,
+		{
+			{PDN, Vol_High, 0},
+			{RST, Vol_Low, 0},
+			{AVDD, Vol_2800, 0},
+			{DOVDD, Vol_1800, 0},
+			{DVDD, Vol_1200, 0},
+			{SensorMCLK, Vol_High, 1},
+			{PDN, Vol_Low, 0},
+			{RST, Vol_High, 10}
+		},
+	},
+#endif
+#if defined(GC2375H_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_GC2375H_MIPI_RAW,
+		{
+			{PDN, Vol_High, 0},
+			{RST, Vol_Low, 0},
+			{AVDD, Vol_2800, 1},
+			{DOVDD, Vol_1800, 1},
+			{DVDD, Vol_1800, 0},
+			{SensorMCLK, Vol_High, 0},
+			{PDN, Vol_Low, 0},
+			{RST, Vol_High, 10},
+		},
+	},
+#endif
+#if defined(S5K3L6_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_S5K3L6_MIPI_RAW,
+		{
+			{SensorMCLK, Vol_High, 0},
+			{RST, Vol_Low, 0},
+			{DOVDD, Vol_1800, 1},
+			{AVDD, Vol_2800, 1},
+			{DVDD, Vol_1200, 1},
+			{AFVDD, Vol_2800, 5},
+			{RST, Vol_High, 1},
+		},
+	},
+#endif
+#if defined(SP250ASUB2_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_SP250ASUB2_MIPI_RAW,
+		{
+			{PDN, Vol_High, 0},
+			{RST, Vol_Low, 0},
+			{DOVDD, Vol_1800, 2},
+			{DVDD, Vol_1200, 2},
+			{AVDD, Vol_2800, 7},
+			{SensorMCLK, Vol_High, 0},
+			{PDN, Vol_Low, 15},
+			{RST, Vol_High, 15},
+		},
+	},
+#endif
+#if defined(GC8034_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_GC8034_MIPI_RAW,
+		{
+			{PDN, Vol_Low, 0},
+			{RST, Vol_Low, 0},
+			{DOVDD, Vol_1800, 1},
+			{DVDD, Vol_1200, 1},
+			//{AFVDD, Vol_1200, 1},
+			{AVDD, Vol_2800, 1},
+			{SensorMCLK, Vol_High, 1},
+			{PDN, Vol_High, 0},
+			{RST, Vol_High, 5}
+		},
+	},
+#endif
+#if defined(GC8C34_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_GC8C34_MIPI_RAW,
+		{
+			{PDN, Vol_Low, 1},
+			{RST, Vol_Low, 3},
+			{DOVDD, Vol_1800, 3},
+			{DVDD, Vol_1200, 3},
+			{AVDD, Vol_2800, 3},
+			{SensorMCLK, Vol_High, 3},
+			{PDN, Vol_High, 1},
+			{RST, Vol_High, 5},
+		},
+	},
+#endif
 #if defined(IMX499_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_IMX499_MIPI_RAW,

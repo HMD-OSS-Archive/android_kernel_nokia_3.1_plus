@@ -65,7 +65,7 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 			{IMGSENSOR_HW_PIN_AVDD,  IMGSENSOR_HW_ID_GPIO},
 			{IMGSENSOR_HW_PIN_DOVDD, IMGSENSOR_HW_ID_REGULATOR},
 			{IMGSENSOR_HW_PIN_DVDD,  IMGSENSOR_HW_ID_REGULATOR},
-			{IMGSENSOR_HW_PIN_PDN,   IMGSENSOR_HW_ID_GPIO}, 
+			{IMGSENSOR_HW_PIN_PDN,   IMGSENSOR_HW_ID_GPIO},
 			{IMGSENSOR_HW_PIN_RST,   IMGSENSOR_HW_ID_GPIO},
 			{IMGSENSOR_HW_PIN_NONE, IMGSENSOR_HW_ID_NONE},
 		},
@@ -87,13 +87,13 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
                 IMGSENSOR_SENSOR_IDX_MAIN3,
                 IMGSENSOR_I2C_DEV_2,
                 {
-                        {IMGSENSOR_HW_ID_MCLK, IMGSENSOR_HW_PIN_MCLK},
-                        {IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_AVDD},
-                        {IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
-                        {IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DVDD},
-                        {IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
-                        {IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_RST},
-                        {IMGSENSOR_HW_ID_NONE, IMGSENSOR_HW_PIN_NONE},
+                        {IMGSENSOR_HW_PIN_MCLK,  IMGSENSOR_HW_ID_MCLK},
+                        {IMGSENSOR_HW_PIN_AVDD,  IMGSENSOR_HW_ID_GPIO},
+                        {IMGSENSOR_HW_PIN_DOVDD, IMGSENSOR_HW_ID_REGULATOR},
+                        {IMGSENSOR_HW_PIN_DVDD,  IMGSENSOR_HW_ID_REGULATOR},
+                        {IMGSENSOR_HW_PIN_PDN,   IMGSENSOR_HW_ID_GPIO},
+                        {IMGSENSOR_HW_PIN_RST,   IMGSENSOR_HW_ID_GPIO},
+                        {IMGSENSOR_HW_PIN_NONE,  IMGSENSOR_HW_ID_NONE},
                 },      
         },
 	{IMGSENSOR_SENSOR_IDX_NONE}
@@ -145,7 +145,7 @@ struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[] = {
 };
 
 /* Legacy design */
-struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
+struct IMGSENSOR_HW_POWER_SEQ_SENSOR sensor_power_sequence[] = {
 #if defined(IMX398_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_IMX398_MIPI_RAW,

@@ -128,7 +128,10 @@ param:
 	 1, 1, 0, 0, 0, 0, 0, 0, 0, 0x0A,
 	 0x30, 0x40, 0x06, 0x12, 40, 0x40, 0x80, 0x40, 0x40, 1,
 	 0x80, 0x60, 0x80, 0x10, 0x34, 0x40, 0x40, 1, 0x80, 0xa,
-	 0x19, 0x00, 0x20, 0, 0, 1, 2, 1, 80, 1}
+	 0x19, 0x00, 0x20, 0, 0, 1, 2, 1, 80, 1,
+	 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	 0, 0, 0, 0
+	}
 };
 
 static struct DISP_PQ_DS_PARAM g_PQ_DS_Param = {
@@ -1174,7 +1177,7 @@ static unsigned long g_mdp_hdr_va;
 
 #if defined(SUPPORT_MDP_AAL)
 #include <linux/delay.h>
-#if defined(CONFIG_MACH_MT6771)
+#if defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6779)
 #define MDP_AAL0_PA_BASE 0x1401b000
 #else
 #define MDP_AAL0_PA_BASE 0x1401c000
@@ -2459,7 +2462,11 @@ static unsigned long color_get_MDP_AAL0_VA(void)
 	unsigned long VA;
 	struct device_node *node = NULL;
 
+#if defined(CONFIG_MACH_MT6771)
 	node = of_find_compatible_node(NULL, NULL, "mediatek,mdp_aal");
+#else
+	node = of_find_compatible_node(NULL, NULL, "mediatek,mdp_aal0");
+#endif
 	VA = (unsigned long)of_iomap(node, 0);
 	COLOR_DBG("MDP_AAL0 VA: 0x%lx\n", VA);
 

@@ -44,7 +44,6 @@ static int version_proc_show(struct seq_file *m, void *v)
 
 		// set user@machine as evercoss@android
 		//strncpy(&new_linux_version[offset], "Tsm-0@tsm-Server0", 17);
-                strncpy(&new_linux_version[offset], "Hmdi@hmdi-Server1", 17);
 		offset += 17;
 
 		// copy ) and others

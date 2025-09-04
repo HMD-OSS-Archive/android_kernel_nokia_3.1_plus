@@ -310,7 +310,7 @@ int dvfs_to_spm2_command(u32 cmd, struct cdvfs_data *cdvfs_d)
 #define OPT				(0) /* reserve for extensibility */
 #define DVFS_D_LEN		(4) /* # of cmd + arg0 + arg1 + ... */
 	unsigned int len = DVFS_D_LEN;
-	int ack_data;
+	int ack_data = 0;
 	unsigned int ret = 0;
 
 	/* cpufreq_ver("#@# %s(%d) cmd %x\n", __func__, __LINE__, cmd); */
@@ -919,10 +919,10 @@ void cpuhvfs_update_cci_mode(unsigned int mode, unsigned int use_id)
 {
 	if (mode < NR_CCI_TBL) {
 		csram_write(OFFS_CCI_TBL_USER, use_id);
-		/* mode = 0(Normal as 50%) mode = 1(Perf as 70%) */
-		csram_write(OFFS_CCI_TBL_MODE, mode);
-		csram_write(OFFS_CCI_TOGGLE_BIT, 1);
-	}
+	/* mode = 0(Normal as 50%) mode = 1(Perf as 70%) */
+	csram_write(OFFS_CCI_TBL_MODE, mode);
+	csram_write(OFFS_CCI_TOGGLE_BIT, 1);
+}
 }
 
 unsigned int cpuhvfs_get_cci_mode(void)

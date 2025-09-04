@@ -98,7 +98,7 @@ static int barohub_get_pressure(char *buf, int bufsize)
 }
 static ssize_t show_sensordata_value(struct device_driver *ddri, char *buf)
 {
-	char strbuf[BAROHUB_BUFSIZE];
+	char strbuf[BAROHUB_BUFSIZE] = {0};
 	int err = 0;
 
 	err = barohub_set_powermode(true);
@@ -111,7 +111,8 @@ static ssize_t show_sensordata_value(struct device_driver *ddri, char *buf)
 		pr_err("barohub_set_powermode fail!!\n");
 		return 0;
 	}
-	return sprintf(buf, "%s\n", strbuf);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n", strbuf);
 }
 static ssize_t show_trace_value(struct device_driver *ddri, char *buf)
 {
@@ -198,12 +199,10 @@ static int baro_recv_data(struct data_unit_t *event, void *reserved)
 	int err = 0;
 	struct barohub_ipi_data *obj = obj_ipi_data;
 
-	if (READ_ONCE(obj->android_enable) == false)
-		return 0;
-
 	if (event->flush_action == FLUSH_ACTION)
 		err = baro_flush_report();
-	else if (event->flush_action == DATA_ACTION)
+	else if (event->flush_action == DATA_ACTION &&
+			READ_ONCE(obj->android_enable) == true)
 		err = baro_data_report(event->pressure_t.pressure, 2,
 			(int64_t)event->time_stamp);
 	return err;
@@ -450,7 +449,7 @@ static int barohub_probe(struct platform_device *pdev)
 	ctl.is_support_batch = false;
 #elif defined CONFIG_NANOHUB
 	ctl.is_report_input_direct = true;
-	ctl.is_support_batch = false;
+	ctl.is_support_batch = true;
 #else
 #endif
 	err = baro_register_control_path(&ctl);

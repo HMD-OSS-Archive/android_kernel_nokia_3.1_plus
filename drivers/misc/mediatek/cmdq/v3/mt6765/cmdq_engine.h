@@ -85,6 +85,8 @@ enum CMDQ_ENG_ENUM {
 	CMDQ_ENG_DISP_DSI1_CMD,	/* 53 */
 	CMDQ_ENG_DISP_DSI1,	/* 54 */
 
+	CMDQ_ENG_INORDER,	/* 55 */
+
 	CMDQ_MAX_ENGINE_COUNT	/* ALWAYS keep at the end */
 };
 
@@ -153,6 +155,8 @@ enum CMDQ_ENG_ENUM {
 #define CMDQ_ENG_RSC_GROUP_FLAG(flag)	((flag) & (CMDQ_ENG_RSC_GROUP_BITS))
 #define CMDQ_ENG_GEPF_GROUP_FLAG(flag)	((flag) & (CMDQ_ENG_GEPF_GROUP_BITS))
 #define CMDQ_ENG_EAF_GROUP_FLAG(flag)	((flag) & (CMDQ_ENG_EAF_GROUP_BITS))
+
+#define CMDQ_ENG_ISP_PERF_FLAG(flag)	((flag) & (CMDQ_ENG_ISP_GROUP_BITS))
 
 #define CMDQ_FOREACH_GROUP(ACTION_struct)\
 	ACTION_struct(CMDQ_GROUP_ISP, ISP)	\

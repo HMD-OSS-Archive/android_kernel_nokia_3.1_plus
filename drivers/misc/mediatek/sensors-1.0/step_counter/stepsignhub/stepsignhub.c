@@ -33,10 +33,6 @@ struct step_chub_ipi_data {
 };
 
 static struct step_chub_ipi_data obj_ipi_data;
-static ssize_t show_step_cds_value(struct device_driver *ddri, char *buf)
-{
-	return snprintf(buf, PAGE_SIZE, "%s\n", buf);
-}
 
 static ssize_t store_trace_value(struct device_driver *ddri,
 	const char *buf, size_t count)
@@ -59,11 +55,9 @@ static ssize_t store_trace_value(struct device_driver *ddri,
 	return count;
 }
 
-static DRIVER_ATTR(step_cds, 0444, show_step_cds_value, NULL);
 static DRIVER_ATTR(trace, 0644, NULL, store_trace_value);
 
 static struct driver_attribute *step_chub_attr_list[] = {
-	&driver_attr_step_cds,
 	&driver_attr_trace,
 };
 
@@ -293,41 +287,49 @@ static int step_cds_open_report_data(int open)
 static int step_detect_recv_data(struct data_unit_t *event,
 				void *reserved)
 {
+	int err = 0;
+
 	if (event->flush_action == FLUSH_ACTION)
-		step_d_flush_report();
+		err = step_d_flush_report();
 	else if (event->flush_action == DATA_ACTION)
-		step_notify(TYPE_STEP_DETECTOR);
-	return 0;
+		err = step_notify(TYPE_STEP_DETECTOR);
+	return err;
 }
 
 static int step_count_recv_data(struct data_unit_t *event, void *reserved)
 {
+	int err = 0;
+
 	if (event->flush_action == FLUSH_ACTION)
-		step_c_flush_report();
+		err = step_c_flush_report();
 	else if (event->flush_action == DATA_ACTION)
-		step_c_data_report(event->step_counter_t.accumulated_step_count,
-			2);
-	return 0;
+		err = step_c_data_report(
+			event->step_counter_t.accumulated_step_count, 2);
+	return err;
 }
 
 static int sign_recv_data(struct data_unit_t *event, void *reserved)
 {
+	int err = 0;
+
 	if (event->flush_action == FLUSH_ACTION)
 		pr_err("sign do not support flush\n");
 	else if (event->flush_action == DATA_ACTION)
-		step_notify(TYPE_SIGNIFICANT);
-	return 0;
+		err = step_notify(TYPE_SIGNIFICANT);
+	return err;
 }
 
 static int floor_count_recv_data(struct data_unit_t *event, void *reserved)
 {
+	int err = 0;
 	floor_counter_event_t *pfloor_counter = &event->floor_counter_t;
 
 	if (event->flush_action == FLUSH_ACTION)
-		floor_c_flush_report();
+		err = floor_c_flush_report();
 	else if (event->flush_action == DATA_ACTION)
-		floor_c_data_report(pfloor_counter->accumulated_floor_count, 2);
-	return 0;
+		err = floor_c_data_report(
+			pfloor_counter->accumulated_floor_count, 2);
+	return err;
 }
 
 static int step_chub_local_init(void)

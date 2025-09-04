@@ -250,7 +250,7 @@ static void __nanohub_interrupt_cfg(struct nanohub_data *data,
 				    u8 interrupt, bool mask)
 {
 	int ret;
-	u8 mask_ret;
+	u8 mask_ret = 0;
 	int cnt = 10;
 	struct device *dev = data->io[ID_NANOHUB_SENSOR].dev;
 	int cmd = mask ? CMD_COMMS_MASK_INTR : CMD_COMMS_UNMASK_INTR;
@@ -796,7 +796,7 @@ static bool nanohub_os_log(char *buffer, int len)
 	    OS_LOG_EVENTID) {
 		char *mtype, *mdata = &buffer[5];
 
-		buffer[len] = 0x00;
+		buffer[len - 1] = '\0';
 
 		switch (buffer[4]) {
 		case 'E':
@@ -883,9 +883,10 @@ static int nanohub_kthread(void *arg)
 	while (!kthread_should_stop()) {
 		switch (nanohub_get_state(data)) {
 		case ST_IDLE:
-			wait_event_interruptible(data->kthread_wait,
-						 atomic_read(&data->kthread_run)
-						 );
+			if (wait_event_interruptible(
+					data->kthread_wait,
+					atomic_read(&data->kthread_run)))
+				continue;
 			nanohub_set_state(data, ST_RUNNING);
 			break;
 		case ST_ERROR:

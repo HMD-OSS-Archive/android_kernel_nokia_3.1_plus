@@ -484,7 +484,7 @@ static int mtk_cl_mdoff_get_cur_state(struct thermal_cooling_device *cdev,
 static int mtk_cl_mdoff_set_cur_state(struct thermal_cooling_device *cdev,
 				unsigned long state)
 {
-	if ((state == 0) || (state == 1))
+	if ((state >= 0) && (state <= 1))
 		mtk_cooler_mutt_dprintk(
 			"[%s] %s %lu (0: md on;  1: md off)\n", __func__,
 			cdev->type, state);
@@ -656,7 +656,7 @@ static int mtk_cl_noIMS_set_cur_state(struct thermal_cooling_device *cdev,
 		return 0;
 	}
 
-	if ((state == 0) || (state == 1))
+	if ((state >= 0) && (state <= 1))
 		mtk_cooler_mutt_dprintk(
 			"mtk_cl_noIMS_set_cur_state() %s %lu (0: md IMS OK;	1: md no IMS)\n",
 			cdev->type, state);
@@ -917,15 +917,23 @@ static void decrease_mutt_limit(void)
 #endif
 	}
 #if defined(FEATURE_MUTT_INTERFACE_VER)
-	mtk_cooler_mutt_dprintk("%s : cl_mutt_param[%d]= 0x%x,", __func__,
-		curr_adp_mutt_level, cl_mutt_param[curr_adp_mutt_level]);
-	mtk_cooler_mutt_dprintk("cl_mutt_pa_param[%d]= 0x%x,",
-		curr_adp_mutt_level, cl_mutt_pa_param[curr_adp_mutt_level]);
-	mtk_cooler_mutt_dprintk("cl_mutt_ca_param[%d]= 0x%x\n",
-		curr_adp_mutt_level, cl_mutt_ca_param[curr_adp_mutt_level]);
+	if (curr_adp_mutt_level >= 0) {
+		mtk_cooler_mutt_dprintk("%s : cl_mutt_param[%d]= 0x%x,",
+			__func__, curr_adp_mutt_level,
+			cl_mutt_param[curr_adp_mutt_level]);
+		mtk_cooler_mutt_dprintk("cl_mutt_pa_param[%d]= 0x%x,",
+			curr_adp_mutt_level,
+			cl_mutt_pa_param[curr_adp_mutt_level]);
+		mtk_cooler_mutt_dprintk("cl_mutt_ca_param[%d]= 0x%x\n",
+			curr_adp_mutt_level,
+			cl_mutt_ca_param[curr_adp_mutt_level]);
+	}
 #else
-	 mtk_cooler_mutt_dprintk("%s : cl_mutt_param[%d]= 0x%x\n", __func__,
-		curr_adp_mutt_level, cl_mutt_param[curr_adp_mutt_level]);
+	if (curr_adp_mutt_level >= 0) {
+		mtk_cooler_mutt_dprintk("%s : cl_mutt_param[%d]= 0x%x\n",
+			__func__, curr_adp_mutt_level,
+			cl_mutt_param[curr_adp_mutt_level]);
+	}
 #endif
 }
 

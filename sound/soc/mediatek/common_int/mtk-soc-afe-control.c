@@ -334,10 +334,10 @@ void SetExternalModemStatus(const bool bEnable)
  *
  *****************************************************************************
  */
-bool InitAfeControl(struct device *pDev)
+int InitAfeControl(struct device *pDev)
 {
 	int i = 0;
-
+	int ret = 0;
 	pr_debug("InitAfeControl\n");
 
 	/* first time to init , reg init. */
@@ -351,31 +351,83 @@ bool InitAfeControl(struct device *pDev)
 	/* allocate memory for pointers */
 	if (mAudioInit == false) {
 		mAudioInit = true;
-		mAudioMrg = kzalloc(sizeof(struct audio_mrg_if), GFP_KERNEL);
-		AudioDaiBt = kzalloc(sizeof(struct audio_digital_dai_bt),
+		mAudioMrg = devm_kzalloc(pDev, sizeof(struct audio_mrg_if),
+					 GFP_KERNEL);
+		if (!mAudioMrg) {
+			/* pr_debug("Failed to allocate private data\n"); */
+			ret = -ENOMEM;
+		} else {
+			mAudioMrg->Mrg_I2S_SampleRate =
+				SampleRateTransform(44100,
+					Soc_Aud_Digital_Block_MRG_I2S_OUT);
+		}
+		AudioDaiBt =
+			devm_kzalloc(pDev, sizeof(struct audio_digital_dai_bt),
 				     GFP_KERNEL);
-		m2ndI2S = kzalloc(sizeof(struct audio_digital_i2s), GFP_KERNEL);
+		if (!AudioDaiBt) {
+			/* pr_debug("Failed to allocate private data\n"); */
+			ret = -ENOMEM;
+		}
+		m2ndI2S = devm_kzalloc(pDev,
+				       sizeof(struct audio_digital_i2s),
+				       GFP_KERNEL);
+		if (!m2ndI2S) {
+			/* pr_debug("Failed to allocate private data\n"); */
+			ret = -ENOMEM;
+		}
 		m2ndI2Sout =
-			kzalloc(sizeof(struct audio_digital_i2s), GFP_KERNEL);
-		mHDMIOutput = kzalloc(sizeof(struct audio_hdmi), GFP_KERNEL);
-
-		for (i = 0; i < Soc_Aud_Digital_Block_NUM_OF_DIGITAL_BLOCK; i++)
+			devm_kzalloc(pDev, sizeof(struct audio_digital_i2s),
+				     GFP_KERNEL);
+		if (!m2ndI2Sout) {
+			/* pr_debug("Failed to allocate private data\n"); */
+			ret = -ENOMEM;
+		}
+		mHDMIOutput = devm_kzalloc(pDev, sizeof(struct audio_hdmi),
+					   GFP_KERNEL);
+		if (!mHDMIOutput) {
+			/* pr_debug("Failed to allocate private data\n"); */
+			ret = -ENOMEM;
+		}
+		for (i = 0; i < Soc_Aud_Digital_Block_NUM_OF_DIGITAL_BLOCK;
+		     i++) {
 			mAudioMEMIF[i] =
-				kzalloc(sizeof(struct audio_memif_attribute),
+				devm_kzalloc(pDev,
+					sizeof(struct audio_memif_attribute),
 					GFP_KERNEL);
-
+			if (!mAudioMEMIF[i]) {
+				/* pr_debug("Failed to
+				 * allocate private data\n");
+				 */
+				ret = -ENOMEM;
+			}
+		}
 		for (i = 0; i < Soc_Aud_Digital_Block_NUM_OF_MEM_INTERFACE;
 		     i++) {
-			AFE_Mem_Control_context[i] = kzalloc(
+			AFE_Mem_Control_context[i] = devm_kzalloc(pDev,
 				sizeof(struct afe_mem_control_t), GFP_KERNEL);
+			if (!AFE_Mem_Control_context[i]) {
+				/* pr_debug("Failed to
+				 * allocate private data\n");
+				 */
+				ret = -ENOMEM;
+			}
 			AFE_Mem_Control_context[i]->substreamL = NULL;
 			spin_lock_init(
 				&AFE_Mem_Control_context[i]->substream_lock);
 		}
 
-		for (i = 0; i < Soc_Aud_Digital_Block_NUM_OF_MEM_INTERFACE; i++)
+		for (i = 0; i < Soc_Aud_Digital_Block_NUM_OF_MEM_INTERFACE;
+		     i++) {
 			Audio_dma_buf[i] =
-				kzalloc(sizeof(Audio_dma_buf), GFP_KERNEL);
+				devm_kzalloc(pDev,
+					     sizeof(Audio_dma_buf), GFP_KERNEL);
+			if (!Audio_dma_buf[i]) {
+				/* pr_debug("Failed to
+				 * allocate private data\n");
+				 */
+				ret = -ENOMEM;
+			}
+		}
 		memset((void *)&AFE_dL_Abnormal_context, 0,
 		       sizeof(struct afe_dl_abnormal_control_t));
 		memset((void *)&mtk_dais, 0, sizeof(mtk_dais));
@@ -388,9 +440,6 @@ bool InitAfeControl(struct device *pDev)
 	InitSramManager(pDev, SramBlockSize);
 	init_irq_manager();
 
-	mAudioMrg->Mrg_I2S_SampleRate =
-		SampleRateTransform(44100, Soc_Aud_Digital_Block_MRG_I2S_OUT);
-
 	PowerDownAllI2SDiv();
 
 	init_afe_ops();
@@ -399,7 +448,7 @@ bool InitAfeControl(struct device *pDev)
 	/* set APLL clock setting */
 	AfeControlMutexUnLock();
 
-	return true;
+	return ret;
 }
 
 bool ResetAfeControl(void)
@@ -1569,6 +1618,10 @@ bool SetI2SDacEnable(bool bEnable)
 		SetDLSrcEnable(false);
 		Afe_Set_Reg(AFE_I2S_CON1, bEnable, 0x1);
 		SetADDAEnable(false);
+
+		/* should delayed 1/fs(smallest is 8k) = 125us before afe off */
+		usleep_range(125, 150);
+
 #ifdef CONFIG_FPGA_EARLY_PORTING
 		pr_info("%s(), disable fpga clock divide by 4", __func__);
 		Afe_Set_Reg(FPGA_CFG0, 0x0 << 1, 0x1 << 1);
@@ -3294,14 +3347,16 @@ bool InitSramManager(struct device *pDev, unsigned int sramblocksize)
 		devm_kzalloc(pDev, mAud_Sram_Manager.mBlocknum *
 					   sizeof(struct audio_sram_block),
 			     GFP_KERNEL);
-
+	if (!mAud_Sram_Manager.mAud_Sram_Block)
+		return -ENOMEM;
 	for (i = 0; i < mAud_Sram_Manager.mBlocknum; i++) {
 		mAud_Sram_Manager.mAud_Sram_Block[i].mValid = true;
 		mAud_Sram_Manager.mAud_Sram_Block[i].mLength =
 			mAud_Sram_Manager.mBlockSize;
 		mAud_Sram_Manager.mAud_Sram_Block[i].mUser = 0;
 		mAud_Sram_Manager.mAud_Sram_Block[i].msram_phys_addr =
-			mAud_Sram_Manager.msram_phys_addr + (sramblocksize * i);
+			mAud_Sram_Manager.msram_phys_addr +
+			(sramblocksize * (dma_addr_t)i);
 		mAud_Sram_Manager.mAud_Sram_Block[i].msram_virt_addr =
 			(void *)((char *)mAud_Sram_Manager.msram_virt_addr +
 				 (sramblocksize * i));
@@ -3588,6 +3643,10 @@ get_min_period_user(enum Soc_Aud_IRQ_MCU_MODE _irq)
 static int check_and_update_irq(const struct irq_user *_irq_user,
 				enum Soc_Aud_IRQ_MCU_MODE _irq)
 {
+	if (_irq_user == NULL) {
+		pr_info("error, irq_user is empty\n");
+		return -EINVAL;
+	}
 	if (!is_tgt_rate_ok(_irq_user->request_rate, _irq_user->request_count,
 			    irq_managers[_irq].rate)) {
 		/* if you got here, you should reconsider your irq usage */

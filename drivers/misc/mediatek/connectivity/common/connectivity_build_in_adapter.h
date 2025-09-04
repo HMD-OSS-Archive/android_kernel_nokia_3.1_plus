@@ -54,17 +54,28 @@
 	defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || \
 	defined(CONFIG_MACH_MT3967) || \
+	defined(CONFIG_MACH_MT6779) || \
 	defined(CONFIG_MACH_KIBOPLUS) || \
 	defined(CONFIG_MACH_ELBRUS)
 #define CONNADP_HAS_CLOCK_BUF_CTRL
+#define KERNEL_CLK_BUF_CHIP_NOT_SUPPORT -7788
 #define KERNEL_clk_buf_ctrl connectivity_export_clk_buf_ctrl
+#define KERNEL_clk_buf_show_status_info \
+		connectivity_export_clk_buf_show_status_info
+#define KERNEL_clk_buf_get_xo_en_sta \
+		connectivity_export_clk_buf_get_xo_en_sta
 enum clk_buf_id;
 void connectivity_export_clk_buf_ctrl(enum clk_buf_id id, bool onoff);
+void connectivity_export_clk_buf_show_status_info(void);
+int connectivity_export_clk_buf_get_xo_en_sta(/*enum xo_id id*/ int id);
+#define KERNEL_is_clk_buf_from_pmic connectivity_export_is_clk_buf_from_pmic
+bool connectivity_export_is_clk_buf_from_pmic(void);
 #endif
 
 /*******************************************************************************
  * PMIC
  * Caller please be sure to #include:
+ *      drivers/misc/mediatek/pmic/include/mt6359/mtk_pmic_api_buck.h
  *	drivers/misc/mediatek/include/mt-plat/upmu_common.h
  ******************************************************************************/
 #if defined(CONFIG_MACH_MT8163)
@@ -95,6 +106,16 @@ void connectivity_export_upmu_set_vcn33_on_ctrl_wifi(unsigned int val);
 	connectivity_export_pmic_get_register_value
 #define KERNEL_upmu_set_reg_value \
 	connectivity_export_upmu_set_reg_value
+#if defined(CONFIG_MTK_PMIC_CHIP_MT6359)
+#define KERNEL_pmic_ldo_vcn13_lp \
+	connectivity_export_pmic_ldo_vcn13_lp
+#define KERNEL_pmic_ldo_vcn18_lp \
+	connectivity_export_pmic_ldo_vcn18_lp
+#define KERNEL_pmic_ldo_vcn33_1_lp \
+	connectivity_export_pmic_ldo_vcn33_1_lp
+#define KERNEL_pmic_ldo_vcn33_2_lp \
+	connectivity_export_pmic_ldo_vcn33_2_lp
+#endif
 void connectivity_export_pmic_config_interface(unsigned int RegNum,
 						unsigned int val,
 						unsigned int MASK,
@@ -108,6 +129,16 @@ void connectivity_export_pmic_set_register_value(int flagname,
 unsigned short connectivity_export_pmic_get_register_value(int flagname);
 void connectivity_export_upmu_set_reg_value(unsigned int reg,
 						unsigned int reg_val);
+#if defined(CONFIG_MTK_PMIC_CHIP_MT6359)
+int connectivity_export_pmic_ldo_vcn13_lp(int user,
+		int op_mode, unsigned char op_en, unsigned char op_cfg);
+int connectivity_export_pmic_ldo_vcn18_lp(int user,
+		int op_mode, unsigned char op_en, unsigned char op_cfg);
+int connectivity_export_pmic_ldo_vcn33_1_lp(int user,
+		int op_mode, unsigned char op_en, unsigned char op_cfg);
+int connectivity_export_pmic_ldo_vcn33_2_lp(int user,
+		int op_mode, unsigned char op_en, unsigned char op_cfg);
+#endif
 #endif
 
 /*******************************************************************************
@@ -261,5 +292,7 @@ do {                                                              \
 extern void gpio_dump_regs_range(int start, int end);
 void connectivity_export_dump_gpio_info(int start, int end);
 #endif
+
+int connectivity_export_gpio_get_tristate_input(unsigned int pin);
 
 #endif /* CONNECTIVITY_BUILD_IN_ADAPTER_H */

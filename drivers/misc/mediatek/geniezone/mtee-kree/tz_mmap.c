@@ -16,6 +16,8 @@
 #include <linux/slab.h>
 #include <kree/tz_mod.h>
 
+#define debugFg 0
+
 /* map user space pages */
 /* control -> 0 = write, 1 = read only memory */
 long _map_user_pages(struct MTIOMMU_PIN_RANGE_T *pinRange, unsigned long uaddr,
@@ -28,7 +30,7 @@ long _map_user_pages(struct MTIOMMU_PIN_RANGE_T *pinRange, unsigned long uaddr,
 	int res, j;
 	uint32_t write;
 
-	if ((uaddr == 0) || (size == 0))
+	if ((!uaddr) || (!size))
 		return -EFAULT;
 
 	pinRange->start = (void *)uaddr;
@@ -38,7 +40,7 @@ long _map_user_pages(struct MTIOMMU_PIN_RANGE_T *pinRange, unsigned long uaddr,
 	last = ((uaddr + size + PAGE_SIZE - 1) & PAGE_MASK) >> PAGE_SHIFT;
 	nr_pages = last - first;
 	pages = kcalloc(nr_pages, sizeof(struct page *), GFP_KERNEL);
-	if (pages == NULL)
+	if (!pages)
 		return -ENOMEM;
 
 	pinRange->pageArray = (void *)pages;
@@ -53,6 +55,7 @@ long _map_user_pages(struct MTIOMMU_PIN_RANGE_T *pinRange, unsigned long uaddr,
 	}
 	if (!(vma->vm_flags & (VM_IO | VM_PFNMAP))) {
 		pinRange->isPage = 1;
+		/*diff with kernel-4.9(Linux modified)*/
 		res = get_user_pages_remote(current, current->mm, uaddr,
 					    nr_pages, write ? FOLL_WRITE : 0,
 					    pages, NULL);
@@ -85,7 +88,7 @@ long _map_user_pages(struct MTIOMMU_PIN_RANGE_T *pinRange, unsigned long uaddr,
 out:
 	up_read(&current->mm->mmap_sem);
 	if (res < 0) {
-		pr_debug("_map_user_pages error = %d\n", res);
+		pr_debug("map user pages error = %d\n", res);
 		goto out_free;
 	}
 
@@ -97,7 +100,7 @@ out:
 	return 0;
 
 out_unmap:
-	pr_debug("_map_user_pages fail\n");
+	pr_debug("map user pages fail\n");
 	if (pinRange->isPage) {
 		for (j = 0; j < res; j++)
 			put_page(pages[j]);
@@ -109,7 +112,7 @@ out_free:
 	return res;
 }
 
-#if 0
+#if debugFg
 static void _unmap_user_pages(struct MTIOMMU_PIN_RANGE_T *pinRange)
 {
 	int res;

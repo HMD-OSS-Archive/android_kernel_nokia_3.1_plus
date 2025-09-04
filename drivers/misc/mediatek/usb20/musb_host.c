@@ -78,6 +78,15 @@
  *   although ARP RX wins.  (That test was done with a full speed link.)
  */
 
+/*
+ * Scnenario: FS USB Audio device attached to a HS Hub.
+ * To fix playback/record issue with ISOC/INTR SSplit transaction scheduled
+ * in the same SOF.
+ */
+
+int isoc_tx_offset = 0x100;
+module_param(isoc_tx_offset, uint, 0644);
+MODULE_PARM_DESC(isoc_tx_offset, "ISOC TX OFFSET");
 
 /*
  * NOTE on endpoint usage:
@@ -3129,10 +3138,12 @@ static int musb_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 				is_in ? "in" : "out",
 				qh);
 
-	snprintf(info + pos, 256, ",rdy<%d>,prev<%d>,cur<%d>",
+	if (pos < 256) {
+		snprintf(info + pos, 256 - pos, ",rdy<%d>,prev<%d>,cur<%d>",
 				qh->is_ready,
 				urb->urb_list.prev != &qh->hep->urb_list,
 				musb_ep_get_qh(qh->hw_ep, is_in) == qh);
+	}
 
 	if (strstr(current->comm, "usb_call"))
 		DBG_LIMIT(5, "%s", info);
