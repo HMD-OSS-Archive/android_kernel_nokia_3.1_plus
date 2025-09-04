@@ -30,6 +30,5 @@ obj-$(CONFIG_HI6220_MBOX)	+= hi6220-mailbox.o
 
 obj-$(CONFIG_BCM_PDC_MBOX)	+= bcm-pdc-mailbox.o
 
-obj-$(CONFIG_QTI_RPMH_MBOX)	+= qcom-rpmh-mailbox.o
+obj-$(CONFIG_MTK_CMDQ_MBOX)	+= mtk-cmdq-mailbox.o
 
-obj-$(CONFIG_MSM_QMP)	+= msm_qmp.o

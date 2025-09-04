@@ -30,8 +30,6 @@
 #include <linux/io.h>
 #include <linux/slab.h>
 #include <linux/stop_machine.h>
-#include <linux/dma-contiguous.h>
-#include <linux/cma.h>
 #include <linux/mm.h>
 
 #include <asm/barrier.h>
@@ -45,6 +43,7 @@
 #include <asm/tlb.h>
 #include <asm/memblock.h>
 #include <asm/mmu_context.h>
+#include <mt-plat/mtk_meminfo.h>
 
 u64 idmap_t0sz = TCR_T0SZ(VA_BITS);
 
@@ -61,43 +60,6 @@ EXPORT_SYMBOL(empty_zero_page);
 static pte_t bm_pte[PTRS_PER_PTE] __page_aligned_bss;
 static pmd_t bm_pmd[PTRS_PER_PMD] __page_aligned_bss __maybe_unused;
 static pud_t bm_pud[PTRS_PER_PUD] __page_aligned_bss __maybe_unused;
-
-struct dma_contig_early_reserve {
-	phys_addr_t base;
-	unsigned long size;
-};
-
-/* allocate the memory for the fixup regions as well */
-#define MAX_FIXUP_AREAS MAX_CMA_AREAS
-static struct dma_contig_early_reserve
-			dma_mmu_remap[MAX_CMA_AREAS + MAX_FIXUP_AREAS];
-static int dma_mmu_remap_num;
-
-void __init dma_contiguous_early_fixup(phys_addr_t base, unsigned long size)
-{
-	if (dma_mmu_remap_num >= ARRAY_SIZE(dma_mmu_remap)) {
-		pr_err("ARM64: Not enough slots for DMA fixup reserved regions!\n");
-		return;
-	}
-	dma_mmu_remap[dma_mmu_remap_num].base = base;
-	dma_mmu_remap[dma_mmu_remap_num].size = size;
-	dma_mmu_remap_num++;
-}
-
-static bool dma_overlap(phys_addr_t start, phys_addr_t end)
-{
-	int i;
-
-	for (i = 0; i < dma_mmu_remap_num; i++) {
-		phys_addr_t dma_base = dma_mmu_remap[i].base;
-		phys_addr_t dma_end = dma_mmu_remap[i].base +
-			dma_mmu_remap[i].size;
-
-		if ((dma_base < end) && (dma_end > start))
-			return true;
-	}
-	return false;
-}
 
 pgprot_t phys_mem_access_prot(struct file *file, unsigned long pfn,
 			      unsigned long size, pgprot_t vma_prot)
@@ -189,8 +151,7 @@ static void alloc_init_pmd(pud_t *pud, unsigned long addr, unsigned long end,
 		next = pmd_addr_end(addr, end);
 		/* try section mapping first */
 		if (((addr | next | phys) & ~SECTION_MASK) == 0 &&
-		      allow_block_mappings &&
-		      !dma_overlap(phys, phys + next - addr)) {
+		      allow_block_mappings) {
 			pmd_t old_pmd =*pmd;
 			pmd_set_huge(pmd, phys, prot);
 			/*
@@ -223,6 +184,17 @@ static inline bool use_1G_block(unsigned long addr, unsigned long next,
 
 	if (((addr | next | phys) & ~PUD_MASK) != 0)
 		return false;
+#ifdef CONFIG_MTK_SSMR
+	/*
+	 * SSMR will unmapping memory region which shared with kernel
+	 * and SVP to prevent illegal fetch of EMI MPU Violation.
+	 * Return false to make all memory become pmd mapping.
+	 */
+	if (memory_ssmr_inited()) {
+		pr_info("%s, memory-ssmr inited\n", __func__);
+		return false;
+	}
+#endif
 
 	return true;
 }
@@ -250,8 +222,7 @@ static void alloc_init_pud(pgd_t *pgd, unsigned long addr, unsigned long end,
 		/*
 		 * For 4K granule only, attempt to put down a 1GB block
 		 */
-		if (use_1G_block(addr, next, phys) && allow_block_mappings &&
-		    !dma_overlap(phys, phys + next - addr)) {
+		if (use_1G_block(addr, next, phys) && allow_block_mappings) {
 			pud_t old_pud = *pud;
 			pud_set_huge(pud, phys, prot);
 
@@ -826,10 +797,6 @@ int __init arch_ioremap_pmd_supported(void)
 
 int pud_set_huge(pud_t *pud, phys_addr_t phys, pgprot_t prot)
 {
-	/* ioremap_page_range doesn't honour BBM */
-	if (pud_present(READ_ONCE(*pud)))
-		return 0;
-
 	BUG_ON(phys & ~PUD_MASK);
 	set_pud(pud, __pud(phys | PUD_TYPE_SECT | pgprot_val(mk_sect_prot(prot))));
 	return 1;
@@ -837,10 +804,6 @@ int pud_set_huge(pud_t *pud, phys_addr_t phys, pgprot_t prot)
 
 int pmd_set_huge(pmd_t *pmd, phys_addr_t phys, pgprot_t prot)
 {
-	/* ioremap_page_range doesn't honour BBM */
-	if (pmd_present(READ_ONCE(*pmd)))
-		return 0;
-
 	BUG_ON(phys & ~PMD_MASK);
 	set_pmd(pmd, __pmd(phys | PMD_TYPE_SECT | pgprot_val(mk_sect_prot(prot))));
 	return 1;

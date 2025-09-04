@@ -35,8 +35,6 @@
 #include <linux/cma.h>
 #include <linux/highmem.h>
 #include <linux/io.h>
-#include <linux/delay.h>
-#include <linux/show_mem_notifier.h>
 #include <trace/events/cma.h>
 
 #include "cma.h"
@@ -55,9 +53,28 @@ unsigned long cma_get_size(const struct cma *cma)
 	return cma->count << PAGE_SHIFT;
 }
 
-const char *cma_get_name(const struct cma *cma)
+/* Get all cma range */
+void cma_get_range(phys_addr_t *base, phys_addr_t *size)
 {
-	return cma->name ? cma->name : "(undefined)";
+	int i;
+	unsigned long base_pfn = ULONG_MAX, max_pfn = 0;
+
+	for (i = 0; i < cma_area_count; i++) {
+		struct cma *cma = &cma_areas[i];
+
+		if (cma->base_pfn < base_pfn)
+			base_pfn = cma->base_pfn;
+
+		if (cma->base_pfn + cma->count > max_pfn)
+			max_pfn = cma->base_pfn + cma->count;
+	}
+
+	if (max_pfn) {
+		*base = PFN_PHYS(base_pfn);
+		*size = PFN_PHYS(max_pfn) - PFN_PHYS(base_pfn);
+	} else {
+		*base = *size = 0;
+	}
 }
 
 static unsigned long cma_bitmap_aligned_mask(const struct cma *cma,
@@ -97,29 +114,6 @@ static void cma_clear_bitmap(struct cma *cma, unsigned long pfn,
 	bitmap_clear(cma->bitmap, bitmap_no, bitmap_count);
 	mutex_unlock(&cma->lock);
 }
-
-static int cma_showmem_notifier(struct notifier_block *nb,
-				   unsigned long action, void *data)
-{
-	int i;
-	unsigned long used;
-	struct cma *cma;
-
-	for (i = 0; i < cma_area_count; i++) {
-		cma = &cma_areas[i];
-		used = bitmap_weight(cma->bitmap,
-				     (int)cma_bitmap_maxno(cma));
-		used <<= cma->order_per_bit;
-		pr_info("cma-%d pages: => %lu used of %lu total pages\n",
-			i, used, cma->count);
-	}
-
-	return 0;
-}
-
-static struct notifier_block cma_nb = {
-	.notifier_call = cma_showmem_notifier,
-};
 
 static int __init cma_activate_area(struct cma *cma)
 {
@@ -161,10 +155,6 @@ static int __init cma_activate_area(struct cma *cma)
 	spin_lock_init(&cma->mem_head_lock);
 #endif
 
-	if (!PageHighMem(pfn_to_page(cma->base_pfn)))
-		kmemleak_free_part(__va(cma->base_pfn << PAGE_SHIFT),
-				cma->count << PAGE_SHIFT);
-
 	return 0;
 
 err:
@@ -172,6 +162,27 @@ err:
 	cma->count = 0;
 	return -EINVAL;
 }
+
+#ifdef CONFIG_ZONE_MOVABLE_CMA
+int cma_alloc_range_ok(struct cma *cma, int count, int align)
+{
+	unsigned long mask, offset;
+	unsigned long bitmap_maxno, bitmap_no, bitmap_count;
+
+	mask = cma_bitmap_aligned_mask(cma, align);
+	offset = cma_bitmap_aligned_offset(cma, align);
+	bitmap_maxno = cma_bitmap_maxno(cma);
+	bitmap_count = cma_bitmap_pages_to_bits(cma, count);
+
+	bitmap_no = bitmap_find_next_zero_area_off(cma->bitmap,
+			bitmap_maxno, 0, bitmap_count, mask,
+			offset);
+
+	if (bitmap_no >= bitmap_maxno)
+		return false;
+	return true;
+}
+#endif
 
 static int __init cma_init_reserved_areas(void)
 {
@@ -183,8 +194,6 @@ static int __init cma_init_reserved_areas(void)
 		if (ret)
 			return ret;
 	}
-
-	show_mem_notifier_register(&cma_nb);
 
 	return 0;
 }
@@ -201,7 +210,6 @@ core_initcall(cma_init_reserved_areas);
  */
 int __init cma_init_reserved_mem(phys_addr_t base, phys_addr_t size,
 				 unsigned int order_per_bit,
-				 const char *name,
 				 struct cma **res_cma)
 {
 	struct cma *cma;
@@ -232,13 +240,6 @@ int __init cma_init_reserved_mem(phys_addr_t base, phys_addr_t size,
 	 * subsystems (like slab allocator) are available.
 	 */
 	cma = &cma_areas[cma_area_count];
-	if (name) {
-		cma->name = name;
-	} else {
-		cma->name = kasprintf(GFP_KERNEL, "cma%d\n", cma_area_count);
-		if (!cma->name)
-			return -ENOMEM;
-	}
 	cma->base_pfn = PFN_DOWN(base);
 	cma->count = size >> PAGE_SHIFT;
 	cma->order_per_bit = order_per_bit;
@@ -270,7 +271,7 @@ int __init cma_init_reserved_mem(phys_addr_t base, phys_addr_t size,
 int __init cma_declare_contiguous(phys_addr_t base,
 			phys_addr_t size, phys_addr_t limit,
 			phys_addr_t alignment, unsigned int order_per_bit,
-			bool fixed, const char *name, struct cma **res_cma)
+			bool fixed, struct cma **res_cma)
 {
 	phys_addr_t memblock_end = memblock_end_of_DRAM();
 	phys_addr_t highmem_start;
@@ -381,7 +382,7 @@ int __init cma_declare_contiguous(phys_addr_t base,
 		base = addr;
 	}
 
-	ret = cma_init_reserved_mem(base, size, order_per_bit, name, res_cma);
+	ret = cma_init_reserved_mem(base, size, order_per_bit, res_cma);
 	if (ret)
 		goto err;
 
@@ -393,32 +394,6 @@ err:
 	pr_err("Failed to reserve %ld MiB\n", (unsigned long)size / SZ_1M);
 	return ret;
 }
-
-#ifdef CONFIG_CMA_DEBUG
-static void cma_debug_show_areas(struct cma *cma)
-{
-	unsigned long next_zero_bit, next_set_bit;
-	unsigned long start = 0;
-	unsigned int nr_zero, nr_total = 0;
-
-	mutex_lock(&cma->lock);
-	pr_info("number of available pages: ");
-	for (;;) {
-		next_zero_bit = find_next_zero_bit(cma->bitmap, cma->count, start);
-		if (next_zero_bit >= cma->count)
-			break;
-		next_set_bit = find_next_bit(cma->bitmap, cma->count, next_zero_bit);
-		nr_zero = next_set_bit - next_zero_bit;
-		pr_cont("%s%u@%lu", nr_total ? "+" : "", nr_zero, next_zero_bit);
-		nr_total += nr_zero;
-		start = next_zero_bit + nr_zero;
-	}
-	pr_cont("=> %u free of %lu total pages\n", nr_total, cma->count);
-	mutex_unlock(&cma->lock);
-}
-#else
-static inline void cma_debug_show_areas(struct cma *cma) { }
-#endif
 
 /**
  * cma_alloc() - allocate pages from contiguous area
@@ -436,10 +411,7 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align)
 	unsigned long start = 0;
 	unsigned long bitmap_maxno, bitmap_no, bitmap_count;
 	struct page *page = NULL;
-	int retry_after_sleep = 0;
-	int ret = -ENOMEM;
-	int max_retries = 2;
-	int available_regions = 0;
+	int ret;
 
 	if (!cma || !cma->count)
 		return NULL;
@@ -449,8 +421,6 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align)
 
 	if (!count)
 		return NULL;
-
-	trace_cma_alloc_start(count, align);
 
 	mask = cma_bitmap_aligned_mask(cma, align);
 	offset = cma_bitmap_aligned_offset(cma, align);
@@ -466,35 +436,9 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align)
 				bitmap_maxno, start, bitmap_count, mask,
 				offset);
 		if (bitmap_no >= bitmap_maxno) {
-			if ((retry_after_sleep < max_retries) &&
-						(ret == -EBUSY)) {
-				start = 0;
-				/*
-				 * update max retries if available free regions
-				 * are less.
-				 */
-				if (available_regions < 3)
-					max_retries = 5;
-				available_regions = 0;
-				/*
-				 * Page may be momentarily pinned by some other
-				 * process which has been scheduled out, eg.
-				 * in exit path, during unmap call, or process
-				 * fork and so cannot be freed there. Sleep
-				 * for 100ms and retry twice to see if it has
-				 * been freed later.
-				 */
-				mutex_unlock(&cma->lock);
-				msleep(100);
-				retry_after_sleep++;
-				continue;
-			} else {
-				mutex_unlock(&cma->lock);
-				break;
-			}
+			mutex_unlock(&cma->lock);
+			break;
 		}
-
-		available_regions++;
 		bitmap_set(cma->bitmap, bitmap_no, bitmap_count);
 		/*
 		 * It's safe to drop the lock here. We've marked this region for
@@ -518,19 +462,11 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align)
 
 		pr_debug("%s(): memory range at %p is busy, retrying\n",
 			 __func__, pfn_to_page(pfn));
-
-		trace_cma_alloc_busy_retry(pfn, pfn_to_page(pfn), count, align);
 		/* try again with a bit different memory target */
 		start = bitmap_no + mask + 1;
 	}
 
 	trace_cma_alloc(pfn, page, count, align);
-
-	if (ret) {
-		pr_info("%s: alloc failed, req-size: %zu pages, ret: %d\n",
-			__func__, count, ret);
-		cma_debug_show_areas(cma);
-	}
 
 	pr_debug("%s(): returned %p\n", __func__, page);
 	return page;

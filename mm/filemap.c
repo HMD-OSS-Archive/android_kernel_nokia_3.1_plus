@@ -47,8 +47,6 @@
 
 #include <asm/mman.h>
 
-int want_old_faultaround_pte = 1;
-
 /*
  * Shared mappings implemented 30.11.1994. It's not fully working yet,
  * though.
@@ -253,12 +251,10 @@ void __delete_from_page_cache(struct page *page, void *shadow)
 	 * invalidate any existing cleancache entries.  We can't leave
 	 * stale data around in the cleancache once our page is gone
 	 */
-	if (PageUptodate(page) && PageMappedToDisk(page)) {
-		count_vm_event(PGPGOUTCLEAN);
+	if (PageUptodate(page) && PageMappedToDisk(page))
 		cleancache_put_page(page);
-	} else {
+	else
 		cleancache_invalidate_page(mapping, page);
-	}
 
 	VM_BUG_ON_PAGE(PageTail(page), page);
 	VM_BUG_ON_PAGE(page_mapped(page), page);
@@ -2132,6 +2128,11 @@ int filemap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	} else if (!page) {
 		/* No page in the page cache at all */
 		do_sync_mmap_readahead(vma, ra, file, offset);
+
+		/* mlog */
+		count_vm_event(PGFMFAULT);
+		current->fm_flt++;
+
 		count_vm_event(PGMAJFAULT);
 		mem_cgroup_count_vm_event(vma->vm_mm, PGMAJFAULT);
 		ret = VM_FAULT_MAJOR;
@@ -2289,14 +2290,6 @@ repeat:
 		if (fe->pte)
 			fe->pte += iter.index - last_pgoff;
 		last_pgoff = iter.index;
-
-		if (want_old_faultaround_pte) {
-			if (fe->address == fe->fault_address)
-				fe->flags &= ~FAULT_FLAG_PREFAULT_OLD;
-			else
-				fe->flags |= FAULT_FLAG_PREFAULT_OLD;
-		}
-
 		if (alloc_set_pte(fe, NULL, page))
 			goto unlock;
 		unlock_page(page);

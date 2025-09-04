@@ -113,15 +113,6 @@ unsigned int elf_hwcap2 __read_mostly;
 EXPORT_SYMBOL(elf_hwcap2);
 
 
-char* (*arch_read_hardware_id)(void);
-EXPORT_SYMBOL(arch_read_hardware_id);
-
-unsigned int boot_reason;
-EXPORT_SYMBOL(boot_reason);
-
-unsigned int cold_boot;
-EXPORT_SYMBOL(cold_boot);
-
 #ifdef MULTI_CPU
 struct processor processor __ro_after_init;
 #endif
@@ -242,40 +233,6 @@ static const char *proc_arch[] = {
 	"?(16)",
 	"?(17)",
 };
-
-#ifdef CONFIG_HARDEN_BRANCH_PREDICTOR
-struct arm_btbinv {
-	void (*apply_bp_hardening)(void);
-};
-static DEFINE_PER_CPU_READ_MOSTLY(struct arm_btbinv, arm_btbinv);
-
-static void arm_a73_apply_bp_hardening(void)
-{
-	asm("mov        r2, #0");
-	asm("mcr        p15, 0, r2, c7, c5, 6");
-}
-
-void arm_apply_bp_hardening(void)
-{
-	if (this_cpu_ptr(&arm_btbinv)->apply_bp_hardening)
-		this_cpu_ptr(&arm_btbinv)->apply_bp_hardening();
-}
-
-void arm_init_bp_hardening(void)
-{
-	switch (read_cpuid_part()) {
-	case ARM_CPU_PART_CORTEX_A73:
-	case ARM_CPU_PART_KRYO2XX_GOLD:
-		per_cpu(arm_btbinv.apply_bp_hardening, raw_smp_processor_id())
-			  = arm_a73_apply_bp_hardening;
-		break;
-	default:
-		per_cpu(arm_btbinv.apply_bp_hardening, raw_smp_processor_id())
-			  = NULL;
-		break;
-	}
-}
-#endif
 
 #ifdef CONFIG_CPU_V7M
 static int __get_cpu_architecture(void)
@@ -719,7 +676,6 @@ static void __init setup_processor(void)
 	 * types.  The linker builds this table for us from the
 	 * entries in arch/arm/mm/proc-*.S
 	 */
-	arm_init_bp_hardening();
 	list = lookup_processor_type(read_cpuid_id());
 	if (!list) {
 		pr_err("CPU configuration botched (ID %08x), unable to continue.\n",
@@ -1102,8 +1058,6 @@ void __init hyp_mode_check(void)
 #endif
 }
 
-void __init __weak init_random_pool(void) { }
-
 void __init setup_arch(char **cmdline_p)
 {
 	const struct machine_desc *mdesc;
@@ -1113,7 +1067,11 @@ void __init setup_arch(char **cmdline_p)
 	if (!mdesc)
 		mdesc = setup_machine_tags(__atags_pointer, __machine_arch_type);
 	machine_desc = mdesc;
+#ifdef CONFIG_OF
+	machine_name = of_flat_dt_get_machine_name();
+#else
 	machine_name = mdesc->name;
+#endif
 	dump_stack_set_arch_desc("%s", mdesc->name);
 
 	if (mdesc->reboot_mode != REBOOT_HARD)
@@ -1192,8 +1150,6 @@ void __init setup_arch(char **cmdline_p)
 
 	if (mdesc->init_early)
 		mdesc->init_early();
-
-	init_random_pool();
 }
 
 
@@ -1209,7 +1165,7 @@ static int __init topology_init(void)
 
 	return 0;
 }
-postcore_initcall(topology_init);
+subsys_initcall(topology_init);
 
 #ifdef CONFIG_HAVE_PROC_CPU
 static int __init proc_cpu_init(void)
@@ -1264,6 +1220,9 @@ static int c_show(struct seq_file *m, void *v)
 	int i, j;
 	u32 cpuid;
 
+	/* a hint message to notify that some process reads /proc/cpuinfo */
+	pr_debug("Dump cpuinfo\n");
+
 	for_each_online_cpu(i) {
 		/*
 		 * glibc reads /proc/cpuinfo to determine the number of
@@ -1272,6 +1231,10 @@ static int c_show(struct seq_file *m, void *v)
 		 */
 		seq_printf(m, "processor\t: %d\n", i);
 		cpuid = is_smp() ? per_cpu(cpu_data, i).cpuid : read_cpuid_id();
+
+		/* backward-compatibility for thrid-party applications */
+		seq_printf(m, "Processor\t: %s rev %d (%s)\n",
+			   cpu_name, cpuid & 15, elf_platform);
 		seq_printf(m, "model name\t: %s rev %d (%s)\n",
 			   cpu_name, cpuid & 15, elf_platform);
 
@@ -1318,10 +1281,7 @@ static int c_show(struct seq_file *m, void *v)
 		seq_printf(m, "CPU revision\t: %d\n\n", cpuid & 15);
 	}
 
-	if (!arch_read_hardware_id)
-		seq_printf(m, "Hardware\t: %s\n", machine_name);
-	else
-		seq_printf(m, "Hardware\t: %s\n", arch_read_hardware_id());
+	seq_printf(m, "Hardware\t: %s\n", machine_name);
 	seq_printf(m, "Revision\t: %04x\n", system_rev);
 	seq_printf(m, "Serial\t\t: %s\n", system_serial);
 

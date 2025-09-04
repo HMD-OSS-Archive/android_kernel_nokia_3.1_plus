@@ -664,6 +664,15 @@ config I2C_MT65XX
 	  If you want to use MediaTek(R) I2C interface, say Y or M here.
 	  If unsure, say N.
 
+config I2C_MTK
+	tristate "MediaTek I2C Driver"
+	default n
+	---help---
+	  This selects the MediaTek(R) Integrated Inter Circuit bus driver.
+	  MediaTek(R) I2C bus adapter is the base for some other I2C client, eg: touch, sensors.
+	  If you want to use MediaTek(R) I2C interface, say Y or M here.
+	  If unsure, say N.
+
 config I2C_MV64XXX
 	tristate "Marvell mv64xxx I2C Controller"
 	depends on MV64X60 || PLAT_ORION || ARCH_SUNXI || ARCH_MVEBU
@@ -789,16 +798,6 @@ config I2C_QUP
 
 	  This driver can also be built as a module.  If so, the module
 	  will be called i2c-qup.
-
-config I2C_QCOM_GENI
-	tristate "Qualcomm Technologies Inc.'s GENI based I2C controller"
-	depends on ARCH_QCOM
-	help
-	  If you say yes to this option, support will be included for the
-	  built-in I2C interface on the Qualcomm Technologies Inc.'s SoCs.
-
-	  This driver can also be built as a module.  If so, the module
-	  will be called i2c-qcom-geni.
 
 config I2C_RIIC
 	tristate "Renesas RIIC adapter"
@@ -1223,17 +1222,5 @@ config I2C_OPAL
 
 	  This driver can also be built as a module. If so, the module will be
 	  called as i2c-opal.
-
-config I2C_MSM_V2
-        tristate "I2C_MSM_V2"
-        depends on ARCH_QCOM
-        help
-          If you say yes to this option, support will be included for the
-          built-in I2C interface and its DMA engine on the MSM family
-          processors.
-
-          This driver can also be built as a module.  If so, the module
-          will be called i2c-msm-v2.
-
 
 endmenu

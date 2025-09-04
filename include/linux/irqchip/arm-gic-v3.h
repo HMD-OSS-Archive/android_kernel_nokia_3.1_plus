@@ -371,11 +371,6 @@
 #define ICH_LR_PHYS_ID_MASK		(0x3ffULL << ICH_LR_PHYS_ID_SHIFT)
 #define ICH_LR_PRIORITY_SHIFT		48
 
-/* These are for GICv2 emulation only */
-#define GICH_LR_VIRTUALID		(0x3ffUL << 0)
-#define GICH_LR_PHYSID_CPUID_SHIFT	(10)
-#define GICH_LR_PHYSID_CPUID		(7UL << GICH_LR_PHYSID_CPUID_SHIFT)
-
 #define ICH_MISR_EOI			(1 << 0)
 #define ICH_MISR_U			(1 << 1)
 
@@ -450,10 +445,6 @@ static inline bool gic_enable_sre(void)
 	return !!(val & ICC_SRE_EL1_SRE);
 }
 
-void gic_show_pending_irqs(void);
-void gic_v3_dist_save(void);
-void gic_v3_dist_restore(void);
-unsigned int get_gic_highpri_irq(void);
 #endif
 
 #endif

@@ -25,7 +25,6 @@
 
 #include <asm/asm-offsets.h>
 #include <asm/cpufeature.h>
-#include <asm/cputype.h>
 #include <asm/page.h>
 #include <asm/pgtable-hwdef.h>
 #include <asm/ptrace.h>
@@ -49,18 +48,6 @@
 
 	.macro	restore_irq, flags
 	msr	daif, \flags
-	.endm
-
-/*
- * Save/disable and restore interrupts.
- */
-	.macro	save_and_disable_irqs, olddaif
-	mrs	\olddaif, daif
-	disable_irq
-	.endm
-
-	.macro	restore_irqs, olddaif
-	msr	daif, \olddaif
 	.endm
 
 /*
@@ -266,7 +253,11 @@ lr	.req	x30		// link register
 	 */
 	.macro adr_this_cpu, dst, sym, tmp
 	adr_l	\dst, \sym
+alternative_if_not ARM64_HAS_VIRT_HOST_EXTN
 	mrs	\tmp, tpidr_el1
+alternative_else
+	mrs	\tmp, tpidr_el2
+alternative_endif
 	add	\dst, \dst, \tmp
 	.endm
 
@@ -277,7 +268,11 @@ lr	.req	x30		// link register
 	 */
 	.macro ldr_this_cpu dst, sym, tmp
 	adr_l	\dst, \sym
+alternative_if_not ARM64_HAS_VIRT_HOST_EXTN
 	mrs	\tmp, tpidr_el1
+alternative_else
+	mrs	\tmp, tpidr_el2
+alternative_endif
 	ldr	\dst, [\dst, \tmp]
 	.endm
 
@@ -469,45 +464,6 @@ alternative_endif
  */
 	.macro	get_thread_info, rd
 	mrs	\rd, sp_el0
-	.endm
-
-/*
- * Check the MIDR_EL1 of the current CPU for a given model and a range of
- * variant/revision. See asm/cputype.h for the macros used below.
- *
- *	model:		MIDR_CPU_MODEL of CPU
- *	rv_min:		Minimum of MIDR_CPU_VAR_REV()
- *	rv_max:		Maximum of MIDR_CPU_VAR_REV()
- *	res:		Result register.
- *	tmp1, tmp2, tmp3: Temporary registers
- *
- * Corrupts: res, tmp1, tmp2, tmp3
- * Returns:  0, if the CPU id doesn't match. Non-zero otherwise
- */
-	.macro	cpu_midr_match model, rv_min, rv_max, res, tmp1, tmp2, tmp3
-	mrs		\res, midr_el1
-	mov_q		\tmp1, (MIDR_REVISION_MASK | MIDR_VARIANT_MASK)
-	mov_q		\tmp2, MIDR_CPU_MODEL_MASK
-	and		\tmp3, \res, \tmp2	// Extract model
-	and		\tmp1, \res, \tmp1	// rev & variant
-	mov_q		\tmp2, \model
-	cmp		\tmp3, \tmp2
-	cset		\res, eq
-	cbz		\res, .Ldone\@		// Model matches ?
-
-	.if (\rv_min != 0)			// Skip min check if rv_min == 0
-	mov_q		\tmp3, \rv_min
-	cmp		\tmp1, \tmp3
-	cset		\res, ge
-	.endif					// \rv_min != 0
-	/* Skip rv_max check if rv_min == rv_max && rv_min != 0 */
-	.if ((\rv_min != \rv_max) || \rv_min == 0)
-	mov_q		\tmp2, \rv_max
-	cmp		\tmp1, \tmp2
-	cset		\tmp2, le
-	and		\res, \res, \tmp2
-	.endif
-.Ldone\@:
 	.endm
 
 	.macro	pte_to_phys, phys, pte

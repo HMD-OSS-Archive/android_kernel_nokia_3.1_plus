@@ -169,9 +169,14 @@ static int psci_cpu_off(u32 state)
 {
 	int err;
 	u32 fn;
-
 	fn = psci_function_id[PSCI_FN_CPU_OFF];
+#ifdef CONFIG_MTK_FIQ_CACHE
+	do {
+		err = invoke_psci_fn(fn, state, 0, 0);
+	} while (err);
+#else
 	err = invoke_psci_fn(fn, state, 0, 0);
+#endif
 	return psci_to_linux_errno(err);
 }
 
@@ -251,15 +256,19 @@ static int get_set_conduit_method(struct device_node *np)
 	return 0;
 }
 
+#if (!defined(CONFIG_MTK_WATCHDOG) && !defined(CONFIG_MACH_MT8167))
 static void psci_sys_reset(enum reboot_mode reboot_mode, const char *cmd)
 {
 	invoke_psci_fn(PSCI_0_2_FN_SYSTEM_RESET, 0, 0, 0);
 }
+#endif
 
+#if (!defined(CONFIG_MACH_MT6757) && !defined(CONFIG_MACH_MT8167))
 static void psci_sys_poweroff(void)
 {
 	invoke_psci_fn(PSCI_0_2_FN_SYSTEM_OFF, 0, 0, 0);
 }
+#endif
 
 static int __init psci_features(u32 psci_func_id)
 {
@@ -268,9 +277,8 @@ static int __init psci_features(u32 psci_func_id)
 }
 
 #ifdef CONFIG_CPU_IDLE
-static __maybe_unused DEFINE_PER_CPU_READ_MOSTLY(u32 *, psci_power_state);
+static DEFINE_PER_CPU_READ_MOSTLY(u32 *, psci_power_state);
 
-#ifdef CONFIG_DT_IDLE_STATES
 static int psci_dt_cpu_init_idle(struct device_node *cpu_node, int cpu)
 {
 	int i, ret, count = 0;
@@ -323,10 +331,6 @@ free_mem:
 	kfree(psci_states);
 	return ret;
 }
-#else
-static int psci_dt_cpu_init_idle(struct device_node *cpu_node, int cpu)
-{ return 0; }
-#endif
 
 #ifdef CONFIG_ACPI
 #include <acpi/processor.h>
@@ -402,26 +406,29 @@ int psci_cpu_init_idle(unsigned int cpu)
 	return ret;
 }
 
-static int psci_suspend_finisher(unsigned long state_id)
+static int psci_suspend_finisher(unsigned long index)
 {
-	return psci_ops.cpu_suspend(state_id,
+	u32 *state = __this_cpu_read(psci_power_state);
+
+	return psci_ops.cpu_suspend(state[index - 1],
 				    virt_to_phys(cpu_resume));
 }
-int psci_cpu_suspend_enter(unsigned long state_id)
+
+int psci_cpu_suspend_enter(unsigned long index)
 {
 	int ret;
-
+	u32 *state = __this_cpu_read(psci_power_state);
 	/*
 	 * idle state index 0 corresponds to wfi, should never be called
 	 * from the cpu_suspend operations
 	 */
-	if (WARN_ON_ONCE(!state_id))
+	if (WARN_ON_ONCE(!index))
 		return -EINVAL;
 
-	if (!psci_power_state_loses_context(state_id))
-		ret = psci_ops.cpu_suspend(state_id, 0);
+	if (!psci_power_state_loses_context(state[index - 1]))
+		ret = psci_ops.cpu_suspend(state[index - 1], 0);
 	else
-		ret = cpu_suspend(state_id, psci_suspend_finisher);
+		ret = cpu_suspend(index, psci_suspend_finisher);
 
 	return ret;
 }
@@ -561,9 +568,13 @@ static void __init psci_0_2_set_functions(void)
 
 	psci_ops.migrate_info_type = psci_migrate_info_type;
 
+#if (!defined(CONFIG_MTK_WATCHDOG) && !defined(CONFIG_MACH_MT8167))
 	arm_pm_restart = psci_sys_reset;
+#endif
 
+#if (!defined(CONFIG_MACH_MT6757) && !defined(CONFIG_MACH_MT8167))
 	pm_power_off = psci_sys_poweroff;
+#endif
 }
 
 /*

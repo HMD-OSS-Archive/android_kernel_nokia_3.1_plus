@@ -16,6 +16,7 @@
 
 #include <linux/init.h>
 #include <linux/mm.h>
+#include <linux/stacktrace.h>
 
 #define INIT_MEMBLOCK_REGIONS	128
 #define INIT_PHYSMEM_REGIONS	4
@@ -61,6 +62,26 @@ extern int memblock_debug;
 extern bool movable_node_enabled;
 #endif /* CONFIG_MOVABLE_NODE */
 
+#ifdef CONFIG_MTK_MEMCFG
+/* Record reserved memblock */
+#define MAX_MEMBLOCK_RECORD 150
+#define MAX_MEMBLOCK_TRACK_DEPTH 20
+struct memblock_record {
+	phys_addr_t base;
+	phys_addr_t end;
+	phys_addr_t size;
+	unsigned long flags;
+	unsigned long ip;
+};
+
+struct memblock_stack_trace {
+	unsigned long size;
+	unsigned long addrs[MAX_MEMBLOCK_TRACK_DEPTH];
+	int count;
+	int merge;
+};
+#endif
+
 #ifdef CONFIG_ARCH_DISCARD_MEMBLOCK
 #define __init_memblock __meminit
 #define __initdata_memblock __meminitdata
@@ -92,8 +113,6 @@ int memblock_clear_hotplug(phys_addr_t base, phys_addr_t size);
 int memblock_mark_mirror(phys_addr_t base, phys_addr_t size);
 int memblock_mark_nomap(phys_addr_t base, phys_addr_t size);
 ulong choose_memblock_flags(void);
-unsigned long memblock_region_resize_late_begin(void);
-void memblock_region_resize_late_end(unsigned long);
 
 /* Low level functions */
 int memblock_add_range(struct memblock_type *type,
@@ -343,7 +362,6 @@ int memblock_is_map_memory(phys_addr_t addr);
 int memblock_is_region_memory(phys_addr_t base, phys_addr_t size);
 bool memblock_is_reserved(phys_addr_t addr);
 bool memblock_is_region_reserved(phys_addr_t base, phys_addr_t size);
-bool memblock_overlaps_memory(phys_addr_t base, phys_addr_t size);
 
 extern void __memblock_dump_all(void);
 
@@ -417,11 +435,6 @@ static inline unsigned long memblock_region_reserved_end_pfn(const struct memblo
 	for (idx = 0, rgn = &memblock_type->regions[0];			\
 	     idx < memblock_type->cnt;					\
 	     idx++, rgn = &memblock_type->regions[idx])
-#define for_each_memblock_rev(memblock_type, region)	\
-	for (region = memblock.memblock_type.regions + \
-			memblock.memblock_type.cnt - 1;	\
-	     region >= memblock.memblock_type.regions;	\
-	     region--)
 
 #ifdef CONFIG_MEMTEST
 extern void early_memtest(phys_addr_t start, phys_addr_t end);

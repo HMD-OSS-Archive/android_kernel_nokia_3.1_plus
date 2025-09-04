@@ -122,6 +122,9 @@ int ip_mc_output(struct net *net, struct sock *sk, struct sk_buff *skb);
 int ip_do_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
 		   int (*output)(struct net *, struct sock *, struct sk_buff *));
 void ip_send_check(struct iphdr *ip);
+int ip_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
+	    unsigned int mtu,
+	    int (*output)(struct net *, struct sock *, struct sk_buff *));
 int __ip_local_out(struct net *net, struct sock *sk, struct sk_buff *skb);
 int ip_local_out(struct net *net, struct sock *sk, struct sk_buff *skb);
 
@@ -273,8 +276,6 @@ static inline int inet_is_local_reserved_port(struct net *net, int port)
 #endif
 
 __be32 inet_current_timestamp(void);
-
-extern int sysctl_reserved_port_bind;
 
 /* From inetpeer.c */
 extern int inet_peer_threshold;

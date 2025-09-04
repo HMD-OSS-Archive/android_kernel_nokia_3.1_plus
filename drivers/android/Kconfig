@@ -9,7 +9,7 @@ if ANDROID
 
 config ANDROID_BINDER_IPC
 	bool "Android Binder IPC Driver"
-	depends on MMU
+	depends on MMU && !M68K
 	default n
 	---help---
 	  Binder is used in Android for both communication between processes,
@@ -32,8 +32,7 @@ config ANDROID_BINDER_DEVICES
 	  therefore logically separated from the other devices.
 
 config ANDROID_BINDER_IPC_32BIT
-	bool "Android Binder IPC 32BIT Driver"
-	depends on !64BIT && ANDROID_BINDER_IPC
+	bool
 	default n
 	---help---
 	  The Binder API has been changed to support both 32 and 64bit

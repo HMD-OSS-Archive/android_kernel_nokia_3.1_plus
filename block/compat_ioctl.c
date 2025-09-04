@@ -701,6 +701,15 @@ long compat_blkdev_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 	case BLKBSZSET_32:
 		return blkdev_ioctl(bdev, mode, BLKBSZSET,
 				(unsigned long)compat_ptr(arg));
+/* MTK PATCH */
+#ifdef CONFIG_MTK_BLK_RW_PROFILING
+	case BLKRWCLR:
+	case BLKRNUM:
+	case BLKWNUM:
+	case BLKRWNUM:
+		return blkdev_ioctl(bdev, mode, cmd,
+				(unsigned long)compat_ptr(arg));
+#endif
 	case BLKPG:
 		return compat_blkpg_ioctl(bdev, mode, cmd, compat_ptr(arg));
 	case BLKRAGET:
@@ -708,7 +717,7 @@ long compat_blkdev_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 		if (!arg)
 			return -EINVAL;
 		return compat_put_long(arg,
-			       (bdev->bd_bdi->ra_pages * PAGE_SIZE) / 512);
+				(bdev->bd_bdi->ra_pages * PAGE_SIZE) / 512);
 	case BLKROGET: /* compatible */
 		return compat_put_int(arg, bdev_read_only(bdev) != 0);
 	case BLKBSZGET_32: /* get the logical block size (cf. BLKSSZGET) */

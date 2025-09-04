@@ -36,6 +36,10 @@ struct persistent_ram_buffer {
 	uint8_t     data[0];
 };
 
+#ifdef __aarch64__
+#define memcpy memcpy_toio
+#endif
+
 #define PERSISTENT_RAM_SIG (0x43474244) /* DBGC */
 
 static inline size_t buffer_size(struct persistent_ram_zone *prz)
@@ -262,29 +266,11 @@ ssize_t persistent_ram_ecc_string(struct persistent_ram_zone *prz,
 	return ret;
 }
 
-/* FIH: for pstore { */
-static void *memcpy_pstore(void *dest, const void *src, size_t count)
-{
-	char *tmp = dest;
-	const char *s = src;
-
-	while (count--)
-		*tmp++ = *s++;
-	return dest;
-}
-/* FIH: for pstore } */
-
 static void notrace persistent_ram_update(struct persistent_ram_zone *prz,
 	const void *s, unsigned int start, unsigned int count)
 {
 	struct persistent_ram_buffer *buffer = prz->buffer;
-	/* FIH: for pstore { */
-#if (0)
-	memcpy(buffer->data + start, s, count);
-#else
-	memcpy_pstore(buffer->data + start, s, count);
-#endif
-/* FIH: for pstore } */
+	memcpy_toio(buffer->data + start, s, count);
 	persistent_ram_update_ecc(prz, start, count);
 }
 

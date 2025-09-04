@@ -69,13 +69,8 @@ source "drivers/nfc/st-nci/Kconfig"
 source "drivers/nfc/nxp-nci/Kconfig"
 source "drivers/nfc/s3fwrn5/Kconfig"
 source "drivers/nfc/st95hf/Kconfig"
-source "drivers/nfc/SecNfc/Kconfig"
+# J6000363 - edith.y.hu
+# SEC NFC driver@{
+source "drivers/nfc/samsung/Kconfig"
+# @}
 endmenu
-
-config NFC_NQ
-        tristate "QTI NCI based NFC Controller Driver for NQx"
-        depends on I2C
-        help
-          This enables the NFC driver for NQx based devices.
-          This is for i2c connected version. NCI protocol logic
-          resides in the usermode and it has no other NFC dependencies.

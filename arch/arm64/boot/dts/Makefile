@@ -20,8 +20,6 @@ dts-dirs += sprd
 dts-dirs += xilinx
 dts-dirs += lg
 dts-dirs += zte
-#Add FIH
-dts-dirs += fih
 
 subdir-y	:= $(dts-dirs)
 

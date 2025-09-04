@@ -37,7 +37,8 @@ const struct cred *override_fsids(struct sdcardfs_sb_info *sbi,
 		if (data->under_obb)
 			uid = AID_MEDIA_OBB;
 		else
-			uid = multiuser_get_uid(data->userid, sbi->options.fs_low_uid);
+			uid = multiuser_get_uid(data->userid,
+				sbi->options.fs_low_uid);
 	} else {
 		uid = sbi->options.fs_low_uid;
 	}
@@ -529,7 +530,7 @@ static const char *sdcardfs_follow_link(struct dentry *dentry, void **cookie)
 
 static int sdcardfs_permission_wrn(struct inode *inode, int mask)
 {
-	pr_debug("sdcardfs does not support permission. Use permission2.\n");
+	WARN_RATELIMIT(1, "sdcardfs does not support permission. Use permission2.\n");
 	return -EINVAL;
 }
 

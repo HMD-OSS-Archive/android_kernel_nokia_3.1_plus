@@ -967,13 +967,12 @@ else
 DTB_LIST := $(dtb-y)
 endif
 
+ifeq ($(strip $(CONFIG_BUILD_ARM_DTB_OVERLAY_IMAGE)), y)
+DTB_LIST += $(addsuffix .dtb, $(subst $\",,$(CONFIG_BUILD_ARM_DTB_OVERLAY_IMAGE_NAMES)))
+endif
+
 targets += dtbs dtbs_install
 targets += $(DTB_LIST)
 
-ifeq ($(CONFIG_ARM64),y)
 always		:= $(DTB_LIST)
-else
-dtbs: $(addprefix $(obj)/, $(DTB_LIST))
-	$(Q)rm -f $(obj)/../*.dtb
-endif
 clean-files	:= *.dtb

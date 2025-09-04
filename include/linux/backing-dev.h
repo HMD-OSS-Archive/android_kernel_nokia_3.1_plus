@@ -27,6 +27,7 @@ static inline struct backing_dev_info *bdi_get(struct backing_dev_info *bdi)
 
 void bdi_put(struct backing_dev_info *bdi);
 
+
 __printf(3, 4)
 int bdi_register(struct backing_dev_info *bdi, struct device *parent,
 		const char *fmt, ...);

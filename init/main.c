@@ -89,6 +89,10 @@
 #include <asm/sections.h>
 #include <asm/cacheflush.h>
 
+#ifdef CONFIG_MTK_RAM_CONSOLE
+#include <mt-plat/mtk_ram_console.h>
+#endif
+
 static int kernel_init(void *);
 
 extern void init_IRQ(void);
@@ -128,8 +132,6 @@ static char *initcall_command_line;
 
 static char *execute_command;
 static char *ramdisk_execute_command;
-
-#define OTHERS_COMMAND_LINE 968
 
 /*
  * Used to generate warnings if static_key manipulation functions are used
@@ -372,6 +374,346 @@ static void __init setup_command_line(char *command_line)
 	strcpy(static_command_line, command_line);
 }
 
+
+
+/* Begin*/
+char fih_skuid[8] = {'0'};
+bool fih_efuse_enable = 1;
+unsigned short fih_hwid = 0xFF;
+
+unsigned short fih_gethwid(void)
+{
+	unsigned char proj = 0, phase = 0, module = 0;
+	char *pattern = "fih_hwid=";
+	char *p = strstr(saved_command_line, pattern);
+	unsigned short ret = 0;
+
+	if (p == NULL)
+		return ret;
+
+	p += strlen(pattern);
+	p = p + 2; // skip '0' & 'x'
+
+	module = *p++ - '0';
+	phase  = *p++ - '0';
+
+	if((*p >= '0') && (*p <= '9'))
+		proj = *p - '0';
+	else if((*p >= 'a') && (*p <= 'f'))
+		proj = *p - 'a' + 10;
+	else if((*p >= 'A') && (*p <= 'F'))
+		proj = *p - 'A' + 10;
+
+	ret = proj | (phase << 4) | (module << 8);
+	return ret;
+}
+EXPORT_SYMBOL(fih_gethwid);
+
+
+unsigned int fih_get_ramtest_result(void)
+{
+    unsigned char result=0;
+    char *pattern = "ramtest_result=";
+    char *p = strstr(saved_command_line, pattern);
+    unsigned short ret=0;
+
+    if (p == NULL)
+		return ret;
+
+    p += strlen(pattern);
+    p = p + 2; // skip '0' & 'x'
+    if((*p >= '0') && (*p <= '9'))
+                result = *p - '0';
+    else if((*p >= 'a') && (*p <= 'f'))
+                result = *p - 'a' + 10;
+    else if((*p >= 'A') && (*p <= 'F'))
+        result = *p - 'A' + 10;
+    ret = result;
+    return ret;
+}
+EXPORT_SYMBOL(fih_get_ramtest_result);
+
+extern unsigned long long fih_mmc_size(void)
+{
+	unsigned char a = 0;
+	int i;
+
+	char *pattern = "emmc_total_size=";
+	char *p = strstr(saved_command_line, pattern);
+
+	unsigned long long  ret = 0;
+
+	if (p == NULL)
+		return ret;
+
+	p += strlen(pattern);
+	p = p + 2;
+
+	for(i = 0; i < 9; i++)
+	{
+		if((*p >= '0') && (*p <= '9'))
+			a = *p - '0';
+		else if((*p >= 'a') && (*p <= 'f'))
+			a = *p - 'a' + 10;
+		else if((*p >= 'A') && (*p <= 'F'))
+			a = *p - 'A' + 10;
+
+		p++;
+		ret = a | ( ret<< 4);
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(fih_mmc_size);
+
+extern unsigned long long fih_mmc_usersize(void)
+{
+	unsigned char a = 0;
+	int i;
+
+	char *pattern = "emmc_user_size=";
+	char *p = strstr(saved_command_line, pattern);
+
+	unsigned long long  ret = 0;
+
+	if (p == NULL)
+		return ret;
+
+	p += strlen(pattern);
+	p = p + 2; 
+
+	for(i = 0; i < 9; i++)
+	{
+		if((*p >= '0') && (*p <= '9'))
+			a = *p - '0';
+		else if((*p >= 'a') && (*p <= 'f'))
+			a = *p - 'a' + 10;
+		else if((*p >= 'A') && (*p <= 'F'))
+			a = *p - 'A' + 10;
+
+		p++;
+		ret = a | ( ret<< 4);
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(fih_mmc_usersize);
+
+unsigned short fih_get_memory_type(void)
+{
+	unsigned char ddr = 0, none = 0, flash = 0;
+
+	char *pattern = "memory_type=";
+	char *p = strstr(saved_command_line, pattern);
+
+	unsigned short ret = 0;
+
+	if (p == NULL)
+		return ret;
+
+	p += strlen(pattern);
+	p = p + 2; // skip '0' & 'x'
+
+	flash = *p++ - '0';
+	none  = *p++ - '0';
+
+	if((*p >= '0') && (*p <= '9'))
+		ddr = *p - '0';
+	else if((*p >= 'a') && (*p <= 'f'))
+		ddr = *p - 'a' + 10;
+	else if((*p >= 'A') && (*p <= 'F'))
+		ddr = *p - 'A' + 10;
+
+	ret = ddr | (none << 4) | (flash << 8);
+
+	return ret;
+}
+EXPORT_SYMBOL(fih_get_memory_type);
+
+unsigned short fih_get_memory_vendor(void)
+{
+	unsigned char vendor = 0;
+
+	char *pattern = "ddr_vendor=";
+	char *p = strstr(saved_command_line, pattern);
+
+	unsigned short ret = 0;
+
+	if (p == NULL)
+		return ret;
+
+	p += strlen(pattern);
+	p = p + 2; // skip '0' & 'x'
+
+	if((*p >= '0') && (*p <= '9'))
+		vendor = *p - '0';
+	else if((*p >= 'a') && (*p <= 'f'))
+		vendor = *p - 'a' + 10;
+	else if((*p >= 'A') && (*p <= 'F'))
+		vendor = *p - 'A' + 10;
+
+	ret = vendor;
+	return ret;
+}
+EXPORT_SYMBOL(fih_get_memory_vendor);
+
+extern unsigned long long fih_get_emmc_size(void)
+{
+	unsigned char a = 0;
+	int i;
+
+	char *pattern = "emmc_total_size=";
+	char *p = strstr(saved_command_line, pattern);
+
+	unsigned long long  ret = 0;
+
+	if (p == NULL)
+		return ret;
+
+	p += strlen(pattern);
+	p = p + 2;
+
+	for(i = 0; i < 9; i++)
+	{
+		if((*p >= '0') && (*p <= '9'))
+			a = *p - '0';
+		else if((*p >= 'a') && (*p <= 'f'))
+			a = *p - 'a' + 10;
+		else if((*p >= 'A') && (*p <= 'F'))
+			a = *p - 'A' + 10;
+
+		p++;
+		ret = a | ( ret<< 4);
+	}
+	return ret;
+}
+EXPORT_SYMBOL(fih_get_emmc_size);
+
+extern unsigned long long fih_get_emmc_usersize(void)
+{
+	unsigned char a = 0;
+	int i;
+
+	char *pattern = "emmc_user_size=";
+	char *p = strstr(saved_command_line, pattern);
+
+	unsigned long long  ret = 0;
+
+	if (p == NULL)
+		return ret;
+
+	p += strlen(pattern);
+	p = p + 2; 
+
+	for(i = 0; i < 9; i++)
+	{
+		if((*p >= '0') && (*p <= '9'))
+			a = *p - '0';
+		else if((*p >= 'a') && (*p <= 'f'))
+			a = *p - 'a' + 10;
+		else if((*p >= 'A') && (*p <= 'F'))
+			a = *p - 'A' + 10;
+
+		p++;
+		ret = a | ( ret<< 4);
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(fih_get_emmc_usersize);
+
+unsigned char fih_get_ps_magnum(void)
+{
+	unsigned char ret = 0;
+	char *pattern = "psmanuf=0x";
+	char *p = strstr(saved_command_line, pattern);
+
+	//printk("p = %p, %s\n", p, p);
+
+	if (p == NULL)
+		return ret;
+
+	p += strlen(pattern);
+	sscanf(p, "%x", (unsigned int *)&ret);
+
+	return ret;
+}
+
+unsigned char fih_getcmd(void)
+{
+	unsigned char ret = 0;
+
+	char *pattern = "androidboot.mode=";
+	char *p = strstr(saved_command_line, pattern);
+
+	if (p == NULL)
+		return ret;
+
+	ret = *(p+17);
+
+	return ret;
+}
+
+
+int gsen_cali_x = 0;
+int gsen_cali_y = 0;
+int gsen_cali_z = 0;
+
+
+void fih_get_gensor_cmd(void)
+{
+	char *ptr1 = strstr(saved_command_line, "cali_x=");
+	char *ptr2 = strstr(saved_command_line, "cali_y=");
+	char *ptr3 = strstr(saved_command_line, "cali_z=");
+	
+	if(ptr1 == NULL || ptr2 == NULL || ptr3 == NULL)
+		return;
+	
+	ptr1 += strlen("cali_x=");
+	sscanf(ptr1, "%d", (int *)&gsen_cali_x);
+
+	ptr2 += strlen("cali_y=");
+	sscanf(ptr2, "%d", (int *)&gsen_cali_y);
+
+	ptr3 += strlen("cali_z=");
+	sscanf(ptr3, "%d", (int *)&gsen_cali_z);
+}
+
+
+bool fih_get_efuse_enable(void)
+{
+	bool ret = 0;
+
+	//strstr(str1, str2)
+	// str1 does not include str2, means securityfused=true
+	if (!strstr(saved_command_line, "androidboot.securityfused=false"))
+	{
+		ret = 1;
+	}
+	else
+	{
+		ret = 0;
+	}
+
+	return ret;
+}
+
+void fih_get_skuid(void)
+{
+	char *pattern = "androidboot.skuid=";
+	char *p = strstr(saved_command_line, pattern);
+
+	if (p == NULL)
+		return;
+
+	p += strlen(pattern);
+
+	strncpy(fih_skuid, p, 5);
+	//printk("fih_get_skuid fih_skuid = %s\n", fih_skuid);
+}
+/* END*/
+
+
 /*
  * We need to finalize in a non-__init function or else race conditions
  * between the root thread and the init thread may cause start_kernel to
@@ -489,6 +831,11 @@ asmlinkage __visible void __init start_kernel(void)
 	smp_setup_processor_id();
 	debug_objects_early_init();
 
+	/*
+	 * Set up the the initial canary ASAP:
+	 */
+	boot_init_stack_canary();
+
 	cgroup_init_early();
 
 	local_irq_disable();
@@ -502,10 +849,6 @@ asmlinkage __visible void __init start_kernel(void)
 	page_address_init();
 	pr_notice("%s", linux_banner);
 	setup_arch(&command_line);
-	/*
-	 * Set up the the initial canary ASAP:
-	 */
-	boot_init_stack_canary();
 	mm_init_cpumask(&init_mm);
 	setup_command_line(command_line);
 	setup_nr_cpu_ids();
@@ -515,11 +858,19 @@ asmlinkage __visible void __init start_kernel(void)
 
 	build_all_zonelists(NULL, NULL);
 	page_alloc_init();
-    
+
+	
+	fih_hwid = fih_gethwid();
+
+
+	fih_efuse_enable = fih_get_efuse_enable();
+
+	fih_get_gensor_cmd();
+	//pr_notice("Alex x = %d, y = %d, z = %d\n", gsen_cali_x, gsen_cali_y, gsen_cali_z);
+
+	fih_get_skuid();
+
 	pr_notice("Kernel command line: %s\n", boot_command_line);
-    if (strlen(boot_command_line) > OTHERS_COMMAND_LINE){
-        pr_notice("Kernel command line: %s\n", &boot_command_line[OTHERS_COMMAND_LINE]);
-    }
 	parse_early_param();
 	after_dashes = parse_args("Booting kernel",
 				  static_command_line, __start___param,
@@ -768,21 +1119,34 @@ static int __init_or_module do_one_initcall_debug(initcall_t fn)
 
 	return ret;
 }
+#ifdef CONFIG_MTPROF
+#include <bootprof.h>
+#else
+#define TIME_LOG_START()
+#define TIME_LOG_END()
+#define bootprof_initcall(fn, ts)
+#endif
 
 int __init_or_module do_one_initcall(initcall_t fn)
 {
 	int count = preempt_count();
 	int ret;
 	char msgbuf[64];
-
+#ifdef CONFIG_MTPROF
+	unsigned long long ts = 0;
+#endif
 	if (initcall_blacklisted(fn))
 		return -EPERM;
 
+#ifdef CONFIG_MTK_RAM_CONSOLE
+	aee_rr_rec_last_init_func((unsigned long)fn);
+#endif
+	TIME_LOG_START();
 	if (initcall_debug)
 		ret = do_one_initcall_debug(fn);
 	else
 		ret = fn();
-
+	TIME_LOG_END();
 	msgbuf[0] = 0;
 
 	if (preempt_count() != count) {
@@ -796,6 +1160,7 @@ int __init_or_module do_one_initcall(initcall_t fn)
 	WARN(msgbuf[0], "initcall %pF returned with %s\n", fn, msgbuf);
 
 	add_latent_entropy();
+	bootprof_initcall(fn, ts);
 	return ret;
 }
 
@@ -856,6 +1221,9 @@ static void __init do_initcalls(void)
 
 	for (level = 0; level < ARRAY_SIZE(initcall_levels) - 1; level++)
 		do_initcall_level(level);
+#ifdef CONFIG_MTK_RAM_CONSOLE
+	aee_rr_rec_last_init_func(~(unsigned long)(0));
+#endif
 }
 
 /*
@@ -956,7 +1324,9 @@ static int __ref kernel_init(void *unused)
 	numa_default_policy();
 
 	rcu_end_inkernel_boot();
-
+#ifdef CONFIG_MTPROF
+	log_boot("Kernel_init_done");
+#endif
 	if (ramdisk_execute_command) {
 		ret = run_init_process(ramdisk_execute_command);
 		if (!ret)
@@ -1052,3 +1422,17 @@ static noinline void __init kernel_init_freeable(void)
 	integrity_load_keys();
 	load_default_modules();
 }
+
+unsigned short fih_get_simslot(void) {
+    unsigned short ret = 0;
+    if (strstr(saved_command_line, "androidboot.simslot=1")) {
+        pr_err("!!!!!!!!!!!!!!fih_get_simslot=1\n");
+        ret = 1;
+    }
+    else if (strstr(saved_command_line, "androidboot.simslot=2")) {
+        pr_err("!!!!!!!!!!!!!!fih_get_simslot=2\n");
+        ret = 2;
+    }
+    return ret;
+}
+EXPORT_SYMBOL(fih_get_simslot);

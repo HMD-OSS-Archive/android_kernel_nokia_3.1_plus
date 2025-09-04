@@ -19,9 +19,6 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/memblock.h>
-#include <linux/preempt.h>
-#include <linux/seqlock.h>
-#include <linux/irqflags.h>
 
 #include <asm/sections.h>
 #include <linux/io.h>
@@ -34,7 +31,6 @@ static struct memblock_region memblock_reserved_init_regions[INIT_MEMBLOCK_REGIO
 static struct memblock_region memblock_physmem_init_regions[INIT_PHYSMEM_REGIONS] __initdata_memblock;
 #endif
 
-static seqcount_t memblock_seq;
 struct memblock memblock __initdata_memblock = {
 	.memory.regions		= memblock_memory_init_regions,
 	.memory.cnt		= 1,	/* empty dummy entry */
@@ -62,6 +58,24 @@ static bool system_has_some_mirror __initdata_memblock = false;
 static int memblock_can_resize __initdata_memblock;
 static int memblock_memory_in_slab __initdata_memblock = 0;
 static int memblock_reserved_in_slab __initdata_memblock = 0;
+
+#if defined(CONFIG_MTK_MEMCFG) && defined(CONFIG_MTK_ENG_BUILD)
+struct memblock_record memblock_record[MAX_MEMBLOCK_RECORD];
+struct memblock_stack_trace memblock_stack_trace[MAX_MEMBLOCK_RECORD];
+int memblock_reserve_count;
+
+inline void init_memblock_stack_trace(struct memblock_stack_trace *mst,
+		struct stack_trace *trace, unsigned long size, int skip)
+{
+	memset(mst->addrs, 0, MAX_MEMBLOCK_TRACK_DEPTH);
+	mst->size = size;
+	mst->merge = 0;
+	trace->nr_entries = 0;
+	trace->max_entries = MAX_MEMBLOCK_TRACK_DEPTH;
+	trace->skip = skip;
+	trace->entries = mst->addrs;
+}
+#endif
 
 ulong __init_memblock choose_memblock_flags(void)
 {
@@ -712,6 +726,7 @@ static int __init_memblock memblock_remove_range(struct memblock_type *type,
 
 int __init_memblock memblock_remove(phys_addr_t base, phys_addr_t size)
 {
+	kmemleak_free_part(__va(base), size);
 	return memblock_remove_range(&memblock.memory, base, size);
 }
 
@@ -723,19 +738,50 @@ int __init_memblock memblock_free(phys_addr_t base, phys_addr_t size)
 		     (unsigned long long)base + size - 1,
 		     (void *)_RET_IP_);
 
-	if (base < memblock.current_limit)
-		kmemleak_free_part_phys(base, size);
+	kmemleak_free_part_phys(base, size);
 	return memblock_remove_range(&memblock.reserved, base, size);
+}
+
+static int __init_memblock memblock_reserve_region(phys_addr_t base,
+						   phys_addr_t size,
+						   int nid,
+						   unsigned long flags)
+{
+	struct memblock_type *_rgn = &memblock.reserved;
+
+	memblock_dbg("memblock_reserve: [%#016llx-%#016llx] flags %#02lx %pF\n",
+		     (unsigned long long)base,
+		     (unsigned long long)base + size - 1,
+		     flags, (void *)_RET_IP_);
+
+#if defined(CONFIG_MTK_MEMCFG) && defined(CONFIG_MTK_ENG_BUILD)
+	if (memblock_reserve_count < MAX_MEMBLOCK_RECORD) {
+		struct stack_trace trace;
+
+		memblock_record[memblock_reserve_count].base = base;
+		memblock_record[memblock_reserve_count].end = base + size - 1;
+		memblock_record[memblock_reserve_count].size = size;
+		memblock_record[memblock_reserve_count].flags = flags;
+		memblock_record[memblock_reserve_count].ip =
+			(unsigned long) _RET_IP_;
+
+		init_memblock_stack_trace(
+			&memblock_stack_trace[memblock_reserve_count],
+			&trace, (unsigned long)size, 0);
+
+		save_stack_trace_tsk(current, &trace);
+		memblock_stack_trace[memblock_reserve_count].count =
+			trace.nr_entries;
+	}
+	memblock_reserve_count++;
+#endif
+
+	return memblock_add_range(_rgn, base, size, nid, flags);
 }
 
 int __init_memblock memblock_reserve(phys_addr_t base, phys_addr_t size)
 {
-	memblock_dbg("memblock_reserve: [%#016llx-%#016llx] flags %#02lx %pF\n",
-		     (unsigned long long)base,
-		     (unsigned long long)base + size - 1,
-		     0UL, (void *)_RET_IP_);
-
-	return memblock_add_range(&memblock.reserved, base, size, MAX_NUMNODES, 0);
+	return memblock_reserve_region(base, size, MAX_NUMNODES, 0);
 }
 
 /**
@@ -1153,8 +1199,7 @@ static phys_addr_t __init memblock_alloc_range_nid(phys_addr_t size,
 		 * The min_count is set to 0 so that memblock allocations are
 		 * never reported as leaks.
 		 */
-		if (found < memblock.current_limit)
-			kmemleak_alloc_phys(found, size, 0, 0);
+		kmemleak_alloc_phys(found, size, 0, 0);
 		return found;
 	}
 	return 0;
@@ -1546,8 +1591,7 @@ void __init memblock_mem_limit_remove_map(phys_addr_t limit)
 			      (phys_addr_t)ULLONG_MAX);
 }
 
-static int __init_memblock __memblock_search(struct memblock_type *type,
-					     phys_addr_t addr)
+static int __init_memblock memblock_search(struct memblock_type *type, phys_addr_t addr)
 {
 	unsigned int left = 0, right = type->cnt;
 
@@ -1563,20 +1607,6 @@ static int __init_memblock __memblock_search(struct memblock_type *type,
 			return mid;
 	} while (left < right);
 	return -1;
-}
-
-static int __init_memblock memblock_search(struct memblock_type *type,
-					   phys_addr_t addr)
-{
-	int ret;
-	unsigned long seq;
-
-	do {
-		seq = raw_read_seqcount_begin(&memblock_seq);
-		ret = __memblock_search(type, addr);
-	} while (unlikely(read_seqcount_retry(&memblock_seq, seq)));
-
-	return ret;
 }
 
 bool __init memblock_is_reserved(phys_addr_t addr)
@@ -1635,14 +1665,6 @@ int __init_memblock memblock_is_region_memory(phys_addr_t base, phys_addr_t size
 	return memblock.memory.regions[idx].base <= base &&
 		(memblock.memory.regions[idx].base +
 		 memblock.memory.regions[idx].size) >= end;
-}
-
-bool __init_memblock memblock_overlaps_memory(phys_addr_t base,
-					      phys_addr_t size)
-{
-	memblock_cap_size(base, &size);
-
-	return memblock_overlaps_region(&memblock.memory, base, size);
 }
 
 /**
@@ -1758,37 +1780,6 @@ void __init_memblock __memblock_dump_all(void)
 void __init memblock_allow_resize(void)
 {
 	memblock_can_resize = 1;
-}
-
-static unsigned long __init_memblock
-memblock_resize_late(int begin, unsigned long flags)
-{
-	static int memblock_can_resize_old;
-
-	if (begin) {
-		preempt_disable();
-		local_irq_save(flags);
-		memblock_can_resize_old = memblock_can_resize;
-		memblock_can_resize = 0;
-		raw_write_seqcount_begin(&memblock_seq);
-	} else {
-		raw_write_seqcount_end(&memblock_seq);
-		memblock_can_resize = memblock_can_resize_old;
-		local_irq_restore(flags);
-		preempt_enable();
-	}
-
-	return flags;
-}
-
-unsigned long __init_memblock memblock_region_resize_late_begin(void)
-{
-	return memblock_resize_late(1, 0);
-}
-
-void __init_memblock memblock_region_resize_late_end(unsigned long flags)
-{
-	memblock_resize_late(0, flags);
 }
 
 static int __init early_memblock(char *p)

@@ -1,16 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *  file.c - part of debugfs, a tiny little debug file system
  *
  *  Copyright (C) 2004 Greg Kroah-Hartman <greg@kroah.com>
  *  Copyright (C) 2004 IBM Inc.
  *
- *	This program is free software; you can redistribute it and/or
- *	modify it under the terms of the GNU General Public License version
- *	2 as published by the Free Software Foundation.
- *
  *  debugfs is for people to use instead of /proc or /sys.
- *  See Documentation/DocBook/filesystems for more details.
- *
+ *  See Documentation/filesystems/ for more details.
  */
 
 #include <linux/module.h>
@@ -23,6 +19,7 @@
 #include <linux/atomic.h>
 #include <linux/device.h>
 #include <asm/poll.h>
+#include <linux/refcount.h>
 
 #include "internal.h"
 

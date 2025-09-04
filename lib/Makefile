@@ -2,6 +2,8 @@
 # Makefile for some libs needed in the kernel.
 #
 
+subdir-ccflags-y += -Werror
+
 ifdef CONFIG_FUNCTION_TRACER
 ORIG_CFLAGS := $(KBUILD_CFLAGS)
 KBUILD_CFLAGS = $(subst $(CC_FLAGS_FTRACE),,$(ORIG_CFLAGS))
@@ -30,8 +32,6 @@ lib-$(CONFIG_HAS_DMA) += dma-noop.o
 
 lib-y	+= kobject.o klist.o
 obj-y	+= lockref.o
-
-KASAN_SANITIZE_find_bit.o := n
 
 obj-y += bcd.o div64.o sort.o parser.o halfmd4.o debug_locks.o random32.o \
 	 bust_spinlocks.o kasprintf.o bitmap.o scatterlist.o \
@@ -232,4 +232,3 @@ obj-$(CONFIG_UBSAN) += ubsan.o
 UBSAN_SANITIZE_ubsan.o := n
 
 obj-$(CONFIG_SBITMAP) += sbitmap.o
-obj-$(CONFIG_QMI_ENCDEC) += qmi_encdec.o

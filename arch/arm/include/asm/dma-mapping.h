@@ -12,18 +12,22 @@
 #include <xen/xen.h>
 #include <asm/xen/hypervisor.h>
 
+#ifdef CONFIG_MTK_BOUNCING_CHECK
+#include "../../../../drivers/misc/mediatek/include/mt-plat/aee.h"
+#endif
+
 #define DMA_ERROR_CODE	(~(dma_addr_t)0x0)
 extern struct dma_map_ops arm_dma_ops;
 extern struct dma_map_ops arm_coherent_dma_ops;
 
-static inline const struct dma_map_ops *__generic_dma_ops(struct device *dev)
+static inline struct dma_map_ops *__generic_dma_ops(struct device *dev)
 {
 	if (dev && dev->archdata.dma_ops)
 		return dev->archdata.dma_ops;
 	return &arm_dma_ops;
 }
 
-static inline const struct dma_map_ops *get_dma_ops(struct device *dev)
+static inline struct dma_map_ops *get_dma_ops(struct device *dev)
 {
 	if (xen_initial_domain())
 		return xen_dma_ops;
@@ -31,8 +35,7 @@ static inline const struct dma_map_ops *get_dma_ops(struct device *dev)
 		return __generic_dma_ops(dev);
 }
 
-static inline void set_dma_ops(struct device *dev,
-				const struct dma_map_ops *ops)
+static inline void set_dma_ops(struct device *dev, struct dma_map_ops *ops)
 {
 	BUG_ON(!dev);
 	dev->archdata.dma_ops = ops;
@@ -145,18 +148,33 @@ static inline bool dma_capable(struct device *dev, dma_addr_t addr, size_t size)
 {
 	u64 limit, mask;
 
-	if (!dev->dma_mask)
+	if (!dev->dma_mask) {
+#ifdef CONFIG_MTK_BOUNCING_CHECK
+		aee_kernel_warning("Bounce Buffering", "NULL dma_mask");
+#endif
 		return 0;
+	}
 
 	mask = *dev->dma_mask;
 
 	limit = (mask + 1) & ~mask;
-	if (limit && size > limit)
+	if (limit && size > limit) {
+#ifdef CONFIG_MTK_BOUNCING_CHECK
+		aee_kernel_warning("Bounce Buffering",
+				"Incorrect dma_mask(%llx): limit(%llx), size(%llx)",
+				mask, limit, size);
+#endif
 		return 0;
+	}
 
-	if ((addr | (addr + size - 1)) & ~mask)
+	if ((addr | (addr + size - 1)) & ~mask) {
+#ifdef CONFIG_MTK_BOUNCING_CHECK
+		aee_kernel_warning("Bounce Buffering",
+				"Incorrect dma_mask(%llx): addr(%llx), size(%llx)",
+				mask, addr, size);
+#endif
 		return 0;
-
+	}
 	return 1;
 }
 

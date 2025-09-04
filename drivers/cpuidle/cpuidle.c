@@ -6,6 +6,15 @@
  *               Adam Belay <abelay@novell.com>
  *
  * This code is licenced under the GPL.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #include <linux/clockchips.h>
@@ -34,6 +43,29 @@ LIST_HEAD(cpuidle_detected_devices);
 static int enabled_devices;
 static int off __read_mostly;
 static int initialized __read_mostly;
+
+/**
+ * wake_up_avail_idle_cpus - break non-iso cpus out of idle
+ * wake_up_avail_idle_cpus try to break non-iso cpus which is in idle state
+ * even including idle polling cpus, for non-idle or iso cpus,
+ * we will do nothing for them.
+ */
+void wake_up_avail_idle_cpus(void)
+{
+	int cpu;
+
+	preempt_disable();
+	for_each_online_cpu(cpu) {
+		if (cpu == smp_processor_id())
+			continue;
+
+		if (cpu_isolated(cpu))
+			continue;
+
+		wake_up_if_idle(cpu);
+	}
+	preempt_enable();
+}
 
 int cpuidle_disabled(void)
 {
@@ -614,36 +646,23 @@ EXPORT_SYMBOL_GPL(cpuidle_register);
 
 #ifdef CONFIG_SMP
 
-static void wake_up_idle_cpus(void *v)
-{
-	int cpu;
-	struct cpumask cpus;
-
-	preempt_disable();
-	if (v) {
-		cpumask_andnot(&cpus, v, cpu_isolated_mask);
-		cpumask_and(&cpus, &cpus, cpu_online_mask);
-	} else
-		cpumask_andnot(&cpus, cpu_online_mask, cpu_isolated_mask);
-
-	for_each_cpu(cpu, &cpus) {
-		if (cpu == smp_processor_id())
-			continue;
-		wake_up_if_idle(cpu);
-	}
-	preempt_enable();
-}
-
 /*
  * This function gets called when a part of the kernel has a new latency
- * requirement.  This means we need to get only those processors out of their
- * C-state for which qos requirement is changed, and then recalculate a new
- * suitable C-state. Just do a cross-cpu IPI; that wakes them all right up.
+ * requirement.  This means we need to get all processors out of their C-state,
+ * and then recalculate a new suitable C-state. Just do a cross-cpu IPI; that
+ * wakes them all right up.
  */
 static int cpuidle_latency_notify(struct notifier_block *b,
 		unsigned long l, void *v)
 {
-	wake_up_idle_cpus(v);
+	/*
+	 * MTK patch:
+	 * only wakeup idle CPUs which is `online & !isolated`,
+	 * when PM_QoS CPU_DMA_LATENCY is updated
+	 */
+/*	wake_up_all_idle_cpus(); */
+	wake_up_avail_idle_cpus();
+
 	return NOTIFY_OK;
 }
 

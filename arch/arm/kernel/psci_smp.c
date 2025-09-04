@@ -24,6 +24,11 @@
 #include <asm/psci.h>
 #include <asm/smp_plat.h>
 
+#if defined(CONFIG_MACH_MT8163)
+#include <mt-smp.h>
+#include <hotplug.h>
+#endif
+
 /*
  * psci_smp assumes that the following is true about PSCI:
  *
@@ -51,10 +56,30 @@ extern void secondary_startup(void);
 
 static int psci_boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
+#if defined(CONFIG_MACH_MT8163)
+	int ret = -1;
+
+	if (psci_ops.cpu_on)
+		ret = psci_ops.cpu_on(cpu_logical_map(cpu),
+				       virt_to_idmap(&secondary_startup));
+
+	if (ret < 0) {
+		pr_err("psci cpu_on failed\n");
+		return -ENODEV;
+	}
+
+	ret = mt_smp_boot_secondary(cpu, idle);
+	if (ret < 0) {
+		pr_err("mt_smp_boot_secondary failed\n");
+		return -ENODEV;
+	}
+	return 0;
+#else
 	if (psci_ops.cpu_on)
 		return psci_ops.cpu_on(cpu_logical_map(cpu),
 					virt_to_idmap(&secondary_startup));
 	return -ENODEV;
+#endif
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
@@ -83,6 +108,12 @@ void psci_cpu_die(unsigned int cpu)
 	panic("psci: cpu %d failed to shutdown\n", cpu);
 }
 
+#if defined(CONFIG_MACH_MT8163)
+int psci_cpu_kill(unsigned int cpu)
+{
+	return mt_cpu_kill(cpu);
+}
+#else
 int psci_cpu_kill(unsigned int cpu)
 {
 	int err, i;
@@ -98,12 +129,12 @@ int psci_cpu_kill(unsigned int cpu)
 	for (i = 0; i < 10; i++) {
 		err = psci_ops.affinity_info(cpu_logical_map(cpu), 0);
 		if (err == PSCI_0_2_AFFINITY_LEVEL_OFF) {
-			pr_debug("CPU%d killed.\n", cpu);
+			pr_info("CPU%d killed.\n", cpu);
 			return 1;
 		}
 
 		msleep(10);
-		pr_debug("Retrying again to check for CPU kill\n");
+		pr_info("Retrying again to check for CPU kill\n");
 	}
 
 	pr_warn("CPU%d may not have shut down cleanly (AFFINITY_INFO reports %d)\n",
@@ -111,12 +142,7 @@ int psci_cpu_kill(unsigned int cpu)
 	/* Make platform_cpu_kill() fail. */
 	return 0;
 }
-
-static bool psci_cpu_can_disable(unsigned int cpu)
-{
-	/*Hotplug of any CPU is supported*/
-	return true;
-}
+#endif
 
 #endif
 
@@ -128,10 +154,15 @@ bool __init psci_smp_available(void)
 
 const struct smp_operations psci_smp_ops __initconst = {
 	.smp_boot_secondary	= psci_boot_secondary,
+#if defined(CONFIG_MACH_MT8163)
+	.smp_prepare_cpus       = mt_smp_prepare_cpus,
+#endif
+#if defined(CONFIG_MACH_MT8163)
+	.smp_secondary_init     = mt_smp_secondary_init,
+#endif
 #ifdef CONFIG_HOTPLUG_CPU
 	.cpu_disable		= psci_cpu_disable,
 	.cpu_die		= psci_cpu_die,
 	.cpu_kill		= psci_cpu_kill,
-	.cpu_can_disable	= psci_cpu_can_disable,
 #endif
 };

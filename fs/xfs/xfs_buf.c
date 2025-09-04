@@ -744,7 +744,7 @@ xfs_buf_readahead_map(
 	int			nmaps,
 	const struct xfs_buf_ops *ops)
 {
-	if (bdi_read_congested(target->bt_bdev->bd_bdi))
+	if (bdi_read_congested(target->bt_dev->bd_bdi))
 		return;
 
 	xfs_buf_read_map(target, map, nmaps,

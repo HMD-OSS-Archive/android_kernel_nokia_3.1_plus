@@ -209,9 +209,6 @@ struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
 	u8 *data;
 	bool pfmemalloc;
 
-	if (IS_ENABLED(CONFIG_FORCE_ALLOC_FROM_DMA_ZONE))
-		gfp_mask |= GFP_DMA;
-
 	cache = (flags & SKB_ALLOC_FCLONE)
 		? skbuff_fclone_cache : skbuff_head_cache;
 
@@ -369,9 +366,6 @@ static void *__netdev_alloc_frag(unsigned int fragsz, gfp_t gfp_mask)
 	struct page_frag_cache *nc;
 	unsigned long flags;
 	void *data;
-
-	if (IS_ENABLED(CONFIG_FORCE_ALLOC_FROM_DMA_ZONE))
-		gfp_mask |= GFP_DMA;
 
 	local_irq_save(flags);
 	nc = this_cpu_ptr(&netdev_alloc_cache);
@@ -910,6 +904,7 @@ static struct sk_buff *__skb_clone(struct sk_buff *n, struct sk_buff *skb)
 	n->cloned = 1;
 	n->nohdr = 0;
 	n->peeked = 0;
+	C(pfmemalloc);
 	n->destructor = NULL;
 	C(tail);
 	C(end);
@@ -3258,6 +3253,7 @@ normal:
 				net_warn_ratelimited(
 					"skb_segment: too many frags: %u %u\n",
 					pos, mss);
+				err = -EINVAL;
 				goto err;
 			}
 
@@ -3294,11 +3290,10 @@ skip_fraglist:
 
 perform_csum_check:
 		if (!csum) {
-			if (skb_has_shared_frag(nskb)) {
-				err = __skb_linearize(nskb);
-				if (err)
-					goto err;
-			}
+			if (skb_has_shared_frag(nskb) &&
+			    __skb_linearize(nskb))
+				goto err;
+
 			if (!nskb->remcsum_offload)
 				nskb->ip_summed = CHECKSUM_NONE;
 			SKB_GSO_CB(nskb)->csum =

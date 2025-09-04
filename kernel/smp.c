@@ -15,7 +15,6 @@
 #include <linux/cpu.h>
 #include <linux/sched.h>
 #include <linux/hypervisor.h>
-#include <linux/suspend.h>
 
 #include "smpboot.h"
 
@@ -34,9 +33,6 @@ static DEFINE_PER_CPU_SHARED_ALIGNED(struct call_function_data, cfd_data);
 static DEFINE_PER_CPU_SHARED_ALIGNED(struct llist_head, call_single_queue);
 
 static void flush_smp_call_function_queue(bool warn_cpu_offline);
-/* CPU mask indicating which CPUs to bring online during smp_init() */
-static bool have_boot_cpu_mask;
-static cpumask_var_t boot_cpu_mask;
 
 int smpcfd_prepare_cpu(unsigned int cpu)
 {
@@ -184,6 +180,30 @@ void generic_smp_call_function_single_interrupt(void)
 	flush_smp_call_function_queue(true);
 }
 
+#ifdef CONFIG_MTPROF
+static unsigned long long mt_record_smp_call_func_start(void)
+{
+	return sched_clock();
+}
+
+static void mt_record_smp_call_func_end(struct call_single_data *csd,
+					unsigned long long start)
+{
+#define WARN_LONG_CALL_FUNC_TIME	3000000
+	unsigned long long duration = sched_clock() - start;
+
+	if (unlikely(duration > WARN_LONG_CALL_FUNC_TIME))
+		pr_warn("func:%pF: too long: %llu ns\n", csd->func, duration);
+}
+#else
+static unsigned long long mt_record_smp_call_func_start(void) { return 0; }
+static void mt_record_smp_call_func_end(struct call_single_data *csd,
+					unsigned long long start)
+{
+
+}
+#endif
+
 /**
  * flush_smp_call_function_queue - Flush pending smp-call-function callbacks
  *
@@ -229,14 +249,19 @@ static void flush_smp_call_function_queue(bool warn_cpu_offline)
 	llist_for_each_entry_safe(csd, csd_next, entry, llist) {
 		smp_call_func_t func = csd->func;
 		void *info = csd->info;
+		unsigned long long start;
 
 		/* Do we wait until *after* callback? */
 		if (csd->flags & CSD_FLAG_SYNCHRONOUS) {
+			start = mt_record_smp_call_func_start();
 			func(info);
+			mt_record_smp_call_func_end(csd, start);
 			csd_unlock(csd);
 		} else {
 			csd_unlock(csd);
+			start = mt_record_smp_call_func_start();
 			func(info);
+			mt_record_smp_call_func_end(csd, start);
 		}
 	}
 
@@ -537,19 +562,6 @@ static int __init maxcpus(char *str)
 
 early_param("maxcpus", maxcpus);
 
-static int __init boot_cpus(char *str)
-{
-	alloc_bootmem_cpumask_var(&boot_cpu_mask);
-	if (cpulist_parse(str, boot_cpu_mask) < 0) {
-		pr_warn("SMP: Incorrect boot_cpus cpumask\n");
-		return -EINVAL;
-	}
-	have_boot_cpu_mask = true;
-	return 0;
-}
-
-early_param("boot_cpus", boot_cpus);
-
 /* Setup number of possible processor ids */
 int nr_cpu_ids __read_mostly = NR_CPUS;
 EXPORT_SYMBOL(nr_cpu_ids);
@@ -565,20 +577,6 @@ void __weak smp_announce(void)
 	printk(KERN_INFO "Brought up %d CPUs\n", num_online_cpus());
 }
 
-static inline bool boot_cpu(int cpu)
-{
-	if (!have_boot_cpu_mask)
-		return true;
-
-	return cpumask_test_cpu(cpu, boot_cpu_mask);
-}
-
-static inline void free_boot_cpu_mask(void)
-{
-	if (have_boot_cpu_mask)	/* Allocated from boot_cpus() */
-		free_bootmem_cpumask_var(boot_cpu_mask);
-}
-
 /* Called by boot processor to activate the rest. */
 void __init smp_init(void)
 {
@@ -591,11 +589,9 @@ void __init smp_init(void)
 	for_each_present_cpu(cpu) {
 		if (num_online_cpus() >= setup_max_cpus)
 			break;
-		if (!cpu_online(cpu) && boot_cpu(cpu))
+		if (!cpu_online(cpu))
 			cpu_up(cpu);
 	}
-
-	free_boot_cpu_mask();
 
 	/* Any cleanup work */
 	smp_announce();
@@ -752,9 +748,8 @@ void wake_up_all_idle_cpus(void)
 	for_each_online_cpu(cpu) {
 		if (cpu == smp_processor_id())
 			continue;
-		if (suspend_freeze_state == FREEZE_STATE_ENTER ||
-		    !cpu_isolated(cpu))
-			wake_up_if_idle(cpu);
+
+		wake_up_if_idle(cpu);
 	}
 	preempt_enable();
 }

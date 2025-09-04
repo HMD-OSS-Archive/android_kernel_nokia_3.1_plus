@@ -303,17 +303,9 @@ struct fb_ops {
 	int (*fb_ioctl)(struct fb_info *info, unsigned int cmd,
 			unsigned long arg);
 
-	/* perform fb specific ioctl v2 (optional) - provides file param */
-	int (*fb_ioctl_v2)(struct fb_info *info, unsigned int cmd,
-					unsigned long arg, struct file *file);
-
 	/* Handle 32bit compat ioctl (optional) */
-	int (*fb_compat_ioctl)(struct fb_info *info, unsigned int cmd,
+	int (*fb_compat_ioctl)(struct fb_info *info, unsigned cmd,
 			unsigned long arg);
-
-	/* Handle 32bit compat ioctl (optional) */
-	int (*fb_compat_ioctl_v2)(struct fb_info *info, unsigned int cmd,
-				  unsigned long arg, struct file *file);
 
 	/* perform fb specific mmap */
 	int (*fb_mmap)(struct fb_info *info, struct vm_area_struct *vma);
@@ -483,7 +475,6 @@ struct fb_info {
 	struct fb_cmap cmap;		/* Current cmap */
 	struct list_head modelist;      /* mode list */
 	struct fb_videomode *mode;	/* current mode */
-	struct file *file;		/* current file node */
 
 #ifdef CONFIG_FB_BACKLIGHT
 	/* assigned backlight device */
@@ -580,7 +571,10 @@ static inline struct apertures_struct *alloc_apertures(unsigned int max_num) {
 #define fb_memcpy_fromfb sbus_memcpy_fromio
 #define fb_memcpy_tofb sbus_memcpy_toio
 
-#elif defined(__i386__) || defined(__alpha__) || defined(__x86_64__) || defined(__hppa__) || defined(__sh__) || defined(__powerpc__) || defined(__avr32__) || defined(__bfin__) || defined(__arm__)
+#elif defined(__i386__) || defined(__alpha__) || defined(__x86_64__) ||	\
+	defined(__hppa__) || defined(__sh__) || defined(__powerpc__) ||	\
+	defined(__avr32__) || defined(__bfin__) || defined(__arm__) ||	\
+	defined(__aarch64__)
 
 #define fb_readb __raw_readb
 #define fb_readw __raw_readw

@@ -307,7 +307,6 @@ const char * const *v4l2_ctrl_get_menu(u32 id)
 	static const char * const header_mode[] = {
 		"Separate Buffer",
 		"Joined With 1st Frame",
-		"Joined with I Frame",
 		NULL,
 	};
 	static const char * const multi_slice[] = {
@@ -338,8 +337,6 @@ const char * const *v4l2_ctrl_get_menu(u32 id)
 		"4.2",
 		"5",
 		"5.1",
-		"5.2",
-		"Unknown",
 		NULL,
 	};
 	static const char * const h264_loop_filter[] = {
@@ -366,7 +363,6 @@ const char * const *v4l2_ctrl_get_menu(u32 id)
 		"Scalable High Intra",
 		"Stereo High",
 		"Multiview High",
-		"Constrained High",
 		NULL,
 	};
 	static const char * const vui_sar_idc[] = {
@@ -931,6 +927,15 @@ const char *v4l2_ctrl_get_name(u32 id)
 	case V4L2_CID_DETECT_MD_GLOBAL_THRESHOLD: return "MD Global Threshold";
 	case V4L2_CID_DETECT_MD_THRESHOLD_GRID:	return "MD Threshold Grid";
 	case V4L2_CID_DETECT_MD_REGION_GRID:	return "MD Region Grid";
+
+	/* Mediatek control */
+	case V4L2_CID_MPEG_MTK_FRAME_INTERVAL:	return "Video frame interval";
+	case V4L2_CID_MPEG_MTK_ERRORMB_MAP:	return "Video error map";
+	case V4L2_CID_MPEG_MTK_DECODE_MODE:	return "Video decode mode";
+	case V4L2_CID_MPEG_MTK_FRAME_SIZE:	return "Video frame size";
+	case V4L2_CID_MPEG_MTK_FIXED_MAX_FRAME_BUFFER:	return "Video fixed maximum frame size";
+	case V4L2_CID_MPEG_MTK_CRC_PATH:	return "Video crc path";
+	case V4L2_CID_MPEG_MTK_GOLDEN_PATH:	return "Video golden path";
 	default:
 		return NULL;
 	}
@@ -944,6 +949,22 @@ void v4l2_ctrl_fill(u32 id, const char **name, enum v4l2_ctrl_type *type,
 	*flags = 0;
 
 	switch (id) {
+	case V4L2_CID_MPEG_MTK_FRAME_INTERVAL:
+	case V4L2_CID_MPEG_MTK_ERRORMB_MAP:
+		*type = V4L2_CTRL_TYPE_INTEGER;
+		*flags |= V4L2_CTRL_FLAG_READ_ONLY;
+		break;
+	case V4L2_CID_MPEG_MTK_DECODE_MODE:
+	case V4L2_CID_MPEG_MTK_FRAME_SIZE:
+	case V4L2_CID_MPEG_MTK_FIXED_MAX_FRAME_BUFFER:
+		*type = V4L2_CTRL_TYPE_INTEGER;
+		*flags |= V4L2_CTRL_FLAG_WRITE_ONLY;
+		break;
+	case V4L2_CID_MPEG_MTK_CRC_PATH:
+	case V4L2_CID_MPEG_MTK_GOLDEN_PATH:
+		*type = V4L2_CTRL_TYPE_STRING;
+		*flags |= V4L2_CTRL_FLAG_WRITE_ONLY;
+		break;
 	case V4L2_CID_AUDIO_MUTE:
 	case V4L2_CID_AUDIO_LOUDNESS:
 	case V4L2_CID_AUTO_WHITE_BALANCE:

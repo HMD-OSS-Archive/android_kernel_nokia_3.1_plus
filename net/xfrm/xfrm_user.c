@@ -867,13 +867,13 @@ static int copy_to_user_state_extra(struct xfrm_state *x,
 			      &x->replay);
 	if (ret)
 		goto out;
-	if (x->security)
-		ret = copy_sec_ctx(x->security, skb);
 	if (x->props.output_mark) {
 		ret = nla_put_u32(skb, XFRMA_OUTPUT_MARK, x->props.output_mark);
 		if (ret)
 			goto out;
 	}
+	if (x->security)
+		ret = copy_sec_ctx(x->security, skb);
 out:
 	return ret;
 }
@@ -1404,9 +1404,6 @@ static int validate_tmpl(int nr, struct xfrm_user_tmpl *ut, u16 family)
 
 		if ((ut[i].mode == XFRM_MODE_TRANSPORT) &&
 		    (ut[i].family != prev_family))
-			return -EINVAL;
-
-		if (ut[i].mode >= XFRM_MODE_MAX)
 			return -EINVAL;
 
 		prev_family = ut[i].family;
@@ -2491,8 +2488,9 @@ static int xfrm_user_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	int type, err;
 
 #ifdef CONFIG_COMPAT
-	if (in_compat_syscall())
+	/*if (in_compat_syscall())
 		return -EOPNOTSUPP;
+	*/
 #endif
 
 	type = nlh->nlmsg_type;

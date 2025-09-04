@@ -28,7 +28,6 @@
 #include "ext4_jbd2.h"
 #include "xattr.h"
 #include "acl.h"
-//#include "ext4_ice.h"
 
 static struct kmem_cache *io_end_cachep;
 
@@ -341,9 +340,8 @@ void ext4_io_submit(struct ext4_io_submit *io)
 	if (bio) {
 		int io_op_flags = io->io_wbc->sync_mode == WB_SYNC_ALL ?
 				  WRITE_SYNC : 0;
-		if (io->io_flags & EXT4_IO_ENCRYPTED)
-			io_op_flags |= REQ_NOENCRYPT;
 		bio_set_op_attrs(io->io_bio, REQ_OP_WRITE, io_op_flags);
+		ext4_set_bio_ctx(io->inode, bio);
 		submit_bio(io->io_bio);
 	}
 	io->io_bio = NULL;
@@ -352,10 +350,10 @@ void ext4_io_submit(struct ext4_io_submit *io)
 void ext4_io_submit_init(struct ext4_io_submit *io,
 			 struct writeback_control *wbc)
 {
-	io->io_flags = 0;
 	io->io_wbc = wbc;
 	io->io_bio = NULL;
 	io->io_end = NULL;
+	io->inode = NULL;
 }
 
 static int io_submit_init_bio(struct ext4_io_submit *io,
@@ -391,6 +389,7 @@ submit_and_retry:
 		ret = io_submit_init_bio(io, bh);
 		if (ret)
 			return ret;
+		io->inode = inode;
 	}
 	ret = bio_add_page(io->io_bio, page, bh->b_size, bh_offset(bh));
 	if (ret != bh->b_size)
@@ -468,12 +467,14 @@ int ext4_bio_write_page(struct ext4_io_submit *io,
 
 	bh = head = page_buffers(page);
 
+	if (fscrypt_is_hw_encrypt(inode))
+		goto submit_buf;
+
 	if (ext4_encrypted_inode(inode) && S_ISREG(inode->i_mode) &&
 	    nr_to_submit) {
 		gfp_t gfp_flags = GFP_NOFS;
 
 	retry_encrypt:
-	if (!fscrypt_using_hardware_encryption(inode))
 		data_page = fscrypt_encrypt_page(inode, page, PAGE_SIZE, 0,
 						page->index, gfp_flags);
 		if (IS_ERR(data_page)) {
@@ -491,12 +492,11 @@ int ext4_bio_write_page(struct ext4_io_submit *io,
 		}
 	}
 
+submit_buf:
 	/* Now submit buffers to write */
 	do {
 		if (!buffer_async_write(bh))
 			continue;
-		if (data_page)
-			io->io_flags |= EXT4_IO_ENCRYPTED;
 		ret = io_submit_add_bh(io, inode,
 				       data_page ? data_page : page, bh);
 		if (ret) {

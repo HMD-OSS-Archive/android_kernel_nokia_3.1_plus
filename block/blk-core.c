@@ -33,6 +33,7 @@
 #include <linux/ratelimit.h>
 #include <linux/pm_runtime.h>
 #include <linux/blk-cgroup.h>
+#include <mt-plat/mtk_blocktag.h> /* MTK PATCH */
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/block.h>
@@ -582,6 +583,8 @@ void blk_cleanup_queue(struct request_queue *q)
 		q->queue_lock = &q->__queue_lock;
 	spin_unlock_irq(lock);
 
+	bdi_unregister(q->backing_dev_info);
+
 	/* @q is and will stay empty, shutdown and put */
 	blk_put_queue(q);
 }
@@ -636,7 +639,6 @@ EXPORT_SYMBOL(blk_alloc_queue);
 int blk_queue_enter(struct request_queue *q, bool nowait)
 {
 	while (true) {
-		int ret;
 
 		if (percpu_ref_tryget_live(&q->q_usage_counter))
 			return 0;
@@ -644,13 +646,11 @@ int blk_queue_enter(struct request_queue *q, bool nowait)
 		if (nowait)
 			return -EBUSY;
 
-		ret = wait_event_interruptible(q->mq_freeze_wq,
-				!atomic_read(&q->mq_freeze_depth) ||
-				blk_queue_dying(q));
+		wait_event(q->mq_freeze_wq,
+			   !atomic_read(&q->mq_freeze_depth) ||
+			   blk_queue_dying(q));
 		if (blk_queue_dying(q))
 			return -ENODEV;
-		if (ret)
-			return ret;
 	}
 }
 
@@ -692,8 +692,8 @@ struct request_queue *blk_alloc_queue_node(gfp_t gfp_mask, int node_id)
 		goto fail_id;
 
 	q->backing_dev_info = bdi_alloc_node(gfp_mask, node_id);
-	if (!q->backing_dev_info)
-		goto fail_split;
+		if (!(q->backing_dev_info))
+			goto fail_split;
 
 	q->backing_dev_info->ra_pages =
 			(VM_MAX_READAHEAD * 1024) / PAGE_SIZE;
@@ -867,7 +867,6 @@ blk_init_allocated_queue(struct request_queue *q, request_fn_proc *rfn,
 
 fail:
 	blk_free_flush_queue(q->fq);
-	q->fq = NULL;
 	return NULL;
 }
 EXPORT_SYMBOL(blk_init_allocated_queue);
@@ -1336,6 +1335,13 @@ void blk_requeue_request(struct request_queue *q, struct request *rq)
 	if (rq->cmd_flags & REQ_QUEUED)
 		blk_queue_end_tag(q, rq);
 
+	/*
+	 * MTK PATCH:
+	 * Remove REQ_DEV_STARTED to make sure future possible abort handler
+	 * works correctly.
+	 */
+	rq->cmd_flags &= ~REQ_DEV_STARTED;
+
 	BUG_ON(blk_queued_rq(rq));
 
 	elv_requeue_request(q, rq);
@@ -1421,9 +1427,6 @@ void __blk_put_request(struct request_queue *q, struct request *req)
 
 	/* this is a bio leak */
 	WARN_ON(req->bio != NULL);
-
-	/* this is a bio leak if the bio is not tagged with BIO_DONTFREE */
-	WARN_ON(req->bio && !bio_flagged(req->bio, BIO_DONTFREE));
 
 	/*
 	 * Request may not have originated from ll_rw_blk. if not,
@@ -1530,9 +1533,6 @@ bool bio_attempt_front_merge(struct request_queue *q, struct request *req,
 	bio->bi_next = req->bio;
 	req->bio = bio;
 
-#ifdef CONFIG_PFK
-	WARN_ON(req->__dun || bio->bi_iter.bi_dun);
-#endif
 	req->__sector = bio->bi_iter.bi_sector;
 	req->__data_len += bio->bi_iter.bi_size;
 	req->ioprio = ioprio_best(req->ioprio, bio_prio(bio));
@@ -1648,9 +1648,6 @@ void init_request_from_bio(struct request *req, struct bio *bio)
 
 	req->errors = 0;
 	req->__sector = bio->bi_iter.bi_sector;
-#ifdef CONFIG_PFK
-	req->__dun = bio->bi_iter.bi_dun;
-#endif
 	req->ioprio = bio_prio(bio);
 	blk_rq_bio_prep(req->q, req, bio);
 }
@@ -2103,6 +2100,9 @@ blk_qc_t submit_bio(struct bio *bio)
 			count_vm_events(PGPGIN, count);
 		}
 
+#ifdef CONFIG_MTK_BLOCK_TAG
+		mtk_btag_pidlog_submit_bio(bio);
+#endif
 		if (unlikely(block_dump)) {
 			char b[BDEVNAME_SIZE];
 			printk(KERN_DEBUG "%s(%d): %s block %Lu on %s (%u sectors)\n",
@@ -2348,6 +2348,61 @@ void blk_account_io_start(struct request *rq, bool new_io)
 	part_stat_unlock();
 }
 
+/* MTK PATCH */
+#ifdef CONFIG_MTK_BLK_RW_PROFILING
+u32 read_counter[RW_ARRAY_SIZE] = {0};
+u32 write_counter[RW_ARRAY_SIZE] = {0};
+void mtk_trace_block_rq(struct request_queue *q, struct request *rq)
+{
+	/* Record 4KB/8KB/.../512KB/others, currently, others all
+	 * allocate to array[128]
+	 */
+	if (blk_rq_bytes(rq) < FS_RW_UNIT)
+		return;
+	/* Not count discard/unmap cmds */
+	if (req_op(rq) == REQ_OP_DISCARD)
+		return;
+
+	if (rq_data_dir(rq) == WRITE) {
+		if (blk_rq_bytes(rq) > CHECK_SIZE_LIMIT)
+			write_counter[CHECK_SIZE_LIMIT/FS_RW_UNIT]++;
+		else
+			write_counter[(blk_rq_bytes(rq)/FS_RW_UNIT) - 1]++;
+	} else if (rq_data_dir(rq) == READ) {
+		if (blk_rq_bytes(rq) > CHECK_SIZE_LIMIT)
+			read_counter[CHECK_SIZE_LIMIT/FS_RW_UNIT]++;
+		else
+			read_counter[(blk_rq_bytes(rq)/FS_RW_UNIT) - 1]++;
+	}
+
+}
+void mtk_trace_block_rq_get_rw_counter(u32 *temp_buf,
+	enum block_rw_enum operation)
+{
+	int i = 0;
+
+	for (i = 0; i < RW_ARRAY_SIZE; i++) {
+		if (operation == blockread)
+			temp_buf[i] = read_counter[i];
+		else if (operation == blockwrite)
+			temp_buf[i] = write_counter[i];
+		else if (operation == blockrw)
+			temp_buf[i] = read_counter[i] + write_counter[i];
+	}
+}
+
+int mtk_trace_block_rq_get_rw_counter_clr(void)
+{
+	int i;
+
+	for (i = 0; i < RW_ARRAY_SIZE; i++) {
+		write_counter[i] = 0;
+		read_counter[i] = 0;
+	}
+	return 0;
+}
+#endif
+
 /**
  * blk_peek_request - peek at the top of a request queue
  * @q: request queue to peek at
@@ -2450,6 +2505,12 @@ struct request *blk_peek_request(struct request_queue *q)
 			break;
 		}
 	}
+
+/* MTK PATCH */
+#ifdef CONFIG_MTK_BLK_RW_PROFILING
+	if (rq)
+		mtk_trace_block_rq(q, rq);
+#endif
 
 	return rq;
 }
@@ -2612,15 +2673,6 @@ bool blk_update_request(struct request *req, int error, unsigned int nr_bytes)
 	blk_account_io_completion(req, nr_bytes);
 
 	total_bytes = 0;
-
-	/*
-	 * Check for this if flagged, Req based dm needs to perform
-	 * post processing, hence dont end bios or request.DM
-	 * layer takes care.
-	 */
-	if (bio_flagged(req->bio, BIO_DONTFREE))
-		return false;
-
 	while (req->bio) {
 		struct bio *bio = req->bio;
 		unsigned bio_bytes = min(bio->bi_iter.bi_size, nr_bytes);
@@ -2653,13 +2705,8 @@ bool blk_update_request(struct request *req, int error, unsigned int nr_bytes)
 	req->__data_len -= total_bytes;
 
 	/* update sector only for requests with clear definition of sector */
-	if (req->cmd_type == REQ_TYPE_FS) {
+	if (req->cmd_type == REQ_TYPE_FS)
 		req->__sector += total_bytes >> 9;
-#ifdef CONFIG_PFK
-		if (req->__dun)
-			req->__dun += total_bytes >> 12;
-#endif
-	}
 
 	/* mixed attributes always follow the first bio */
 	if (req->cmd_flags & REQ_MIXED_MERGE) {
@@ -3060,9 +3107,6 @@ static void __blk_rq_prep_clone(struct request *dst, struct request *src)
 			 (src->cmd_flags & REQ_CLONE_MASK) | REQ_NOMERGE);
 	dst->cmd_type = src->cmd_type;
 	dst->__sector = blk_rq_pos(src);
-#ifdef CONFIG_PFK
-	dst->__dun = blk_rq_dun(src);
-#endif
 	dst->__data_len = blk_rq_bytes(src);
 	dst->nr_phys_segments = src->nr_phys_segments;
 	dst->ioprio = src->ioprio;

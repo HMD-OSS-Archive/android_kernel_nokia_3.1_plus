@@ -113,7 +113,8 @@ struct fsg_lun {
 	u32		unit_attention_data;
 
 	unsigned int	blkbits; /* Bits of logical block size
-						       of bound block device */
+				  *of bound block device
+				  */
 	unsigned int	blksize; /* logical block size of bound block device */
 	struct device	dev;
 	const char	*name;		/* "lun.name" */
@@ -128,10 +129,11 @@ static inline bool fsg_lun_is_open(struct fsg_lun *curlun)
 
 /* Default size of buffer length. */
 #define FSG_BUFLEN	((u32)16384)
-#define EXTRA_ALLOCATION_SIZE	((u32)256)
 
 /* Maximal number of LUNs supported in mass storage function */
 #define FSG_MAX_LUNS	16
+#define LUN_NAME_LEN	8
+
 
 enum fsg_buffer_state {
 	BUF_STATE_EMPTY = 0,

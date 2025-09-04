@@ -44,10 +44,11 @@
 #include <linux/mpage.h>
 #include <linux/bit_spinlock.h>
 #include <trace/events/block.h>
+#include <linux/hie.h>
 
 static int fsync_buffers_list(spinlock_t *lock, struct list_head *list);
-static int submit_bh_wbc(int op, int op_flags, struct buffer_head *bh,
-			 unsigned long bio_flags,
+static int submit_bh_wbc_crypt(struct inode *inode, int op, int op_flags,
+			 struct buffer_head *bh, unsigned long bio_flags,
 			 struct writeback_control *wbc);
 
 #define BH_ENTRY(list) list_entry((list), struct buffer_head, b_assoc_buffers)
@@ -1082,6 +1083,10 @@ static struct buffer_head *
 __getblk_slow(struct block_device *bdev, sector_t block,
 	     unsigned size, gfp_t gfp)
 {
+#ifdef CONFIG_ZONE_MOVABLE_CMA
+	/* __GFP_MOVABLE is not allowed for buffer_head */
+	gfp &= ~__GFP_MOVABLE;
+#endif
 	/* Size must be multiple of hard sectorsize */
 	if (unlikely(size & (bdev_logical_block_size(bdev)-1) ||
 			(size < 512 || size > PAGE_SIZE))) {
@@ -1455,47 +1460,11 @@ static bool has_bh_in_lru(int cpu, void *dummy)
 	return 0;
 }
 
-static void __evict_bh_lru(void *arg)
-{
-	struct bh_lru *b = &get_cpu_var(bh_lrus);
-	struct buffer_head *bh = arg;
-	int i;
-
-	for (i = 0; i < BH_LRU_SIZE; i++) {
-		if (b->bhs[i] == bh) {
-			brelse(b->bhs[i]);
-			b->bhs[i] = NULL;
-			goto out;
-		}
-	}
-out:
-	put_cpu_var(bh_lrus);
-}
-
-static bool bh_exists_in_lru(int cpu, void *arg)
-{
-	struct bh_lru *b = per_cpu_ptr(&bh_lrus, cpu);
-	struct buffer_head *bh = arg;
-	int i;
-
-	for (i = 0; i < BH_LRU_SIZE; i++) {
-		if (b->bhs[i] == bh)
-			return 1;
-	}
-
-	return 0;
-
-}
 void invalidate_bh_lrus(void)
 {
 	on_each_cpu_cond(has_bh_in_lru, invalidate_bh_lru, NULL, 1, GFP_KERNEL);
 }
 EXPORT_SYMBOL_GPL(invalidate_bh_lrus);
-
-static void evict_bh_lrus(struct buffer_head *bh)
-{
-	on_each_cpu_cond(bh_exists_in_lru, __evict_bh_lru, bh, 1, GFP_ATOMIC);
-}
 
 void set_bh_page(struct buffer_head *bh,
 		struct page *page, unsigned long offset)
@@ -1822,7 +1791,8 @@ int __block_write_full_page(struct inode *inode, struct page *page,
 	do {
 		struct buffer_head *next = bh->b_this_page;
 		if (buffer_async_write(bh)) {
-			submit_bh_wbc(REQ_OP_WRITE, write_flags, bh, 0, wbc);
+			submit_bh_wbc_crypt(inode, REQ_OP_WRITE,
+				write_flags, bh, 0, wbc);
 			nr_underway++;
 		}
 		bh = next;
@@ -1876,7 +1846,8 @@ recover:
 		struct buffer_head *next = bh->b_this_page;
 		if (buffer_async_write(bh)) {
 			clear_buffer_dirty(bh);
-			submit_bh_wbc(REQ_OP_WRITE, write_flags, bh, 0, wbc);
+			submit_bh_wbc_crypt(inode, REQ_OP_WRITE,
+				write_flags, bh, 0, wbc);
 			nr_underway++;
 		}
 		bh = next;
@@ -3087,8 +3058,9 @@ void guard_bio_eod(int op, struct bio *bio)
 	}
 }
 
-static int submit_bh_wbc(int op, int op_flags, struct buffer_head *bh,
-			 unsigned long bio_flags, struct writeback_control *wbc)
+int submit_bh_wbc_crypt(struct inode *inode, int op, int op_flags,
+			struct buffer_head *bh, unsigned long bio_flags,
+			struct writeback_control *wbc)
 {
 	struct bio *bio;
 
@@ -3125,6 +3097,9 @@ static int submit_bh_wbc(int op, int op_flags, struct buffer_head *bh,
 	bio->bi_private = bh;
 	bio->bi_flags |= bio_flags;
 
+	if (inode)
+		hie_set_bio_crypt_context(inode, bio);
+
 	/* Take care of bh's that straddle the end of the device */
 	guard_bio_eod(op, bio);
 
@@ -3141,13 +3116,20 @@ static int submit_bh_wbc(int op, int op_flags, struct buffer_head *bh,
 int _submit_bh(int op, int op_flags, struct buffer_head *bh,
 	       unsigned long bio_flags)
 {
-	return submit_bh_wbc(op, op_flags, bh, bio_flags, NULL);
+	return submit_bh_wbc_crypt(NULL, op, op_flags, bh, bio_flags, NULL);
 }
 EXPORT_SYMBOL_GPL(_submit_bh);
 
-int submit_bh(int op, int op_flags,  struct buffer_head *bh)
+int submit_bh_crypt(struct inode *inode, int op, int op_flags,
+	struct buffer_head *bh)
 {
-	return submit_bh_wbc(op, op_flags, bh, 0, NULL);
+	return submit_bh_wbc_crypt(inode, op, op_flags, bh, 0, NULL);
+}
+EXPORT_SYMBOL(submit_bh_crypt);
+
+int submit_bh(int op, int op_flags, struct buffer_head *bh)
+{
+	return submit_bh_wbc_crypt(NULL, op, op_flags, bh, 0, NULL);
 }
 EXPORT_SYMBOL(submit_bh);
 
@@ -3177,7 +3159,8 @@ EXPORT_SYMBOL(submit_bh);
  * All of the buffers must be for the same device, and must also be a
  * multiple of the current approved size for the device.
  */
-void ll_rw_block(int op, int op_flags,  int nr, struct buffer_head *bhs[])
+void ll_rw_block_crypt(struct inode *inode, int op, int op_flags, int nr,
+		       struct buffer_head *bhs[])
 {
 	int i;
 
@@ -3190,19 +3173,25 @@ void ll_rw_block(int op, int op_flags,  int nr, struct buffer_head *bhs[])
 			if (test_clear_buffer_dirty(bh)) {
 				bh->b_end_io = end_buffer_write_sync;
 				get_bh(bh);
-				submit_bh(op, op_flags, bh);
+				submit_bh_crypt(inode, op, op_flags, bh);
 				continue;
 			}
 		} else {
 			if (!buffer_uptodate(bh)) {
 				bh->b_end_io = end_buffer_read_sync;
 				get_bh(bh);
-				submit_bh(op, op_flags, bh);
+				submit_bh_crypt(inode, op, op_flags, bh);
 				continue;
 			}
 		}
 		unlock_buffer(bh);
 	}
+}
+EXPORT_SYMBOL(ll_rw_block_crypt);
+
+void ll_rw_block(int op, int op_flags, int nr, struct buffer_head *bhs[])
+{
+	ll_rw_block_crypt(NULL, op, op_flags, nr, bhs);
 }
 EXPORT_SYMBOL(ll_rw_block);
 
@@ -3286,15 +3275,8 @@ drop_buffers(struct page *page, struct buffer_head **buffers_to_free)
 	do {
 		if (buffer_write_io_error(bh) && page->mapping)
 			mapping_set_error(page->mapping, -EIO);
-		if (buffer_busy(bh)) {
-			/*
-			 * Check if the busy failure was due to an
-			 * outstanding LRU reference
-			 */
-			evict_bh_lrus(bh);
-			if (buffer_busy(bh))
-				goto failed;
-		}
+		if (buffer_busy(bh))
+			goto failed;
 		bh = bh->b_this_page;
 	} while (bh != head);
 
