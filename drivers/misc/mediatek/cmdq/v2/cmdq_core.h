@@ -52,6 +52,12 @@
 		highAddr = ((addr >> 32) & 0xffff);                            \
 	}
 #else
+#ifdef CONFIG_ARM64
+#define CMDQ_GET_HIGH_ADDR(addr, highAddr)                                     \
+	{                                                                      \
+		highAddr = ((addr >> 32) & 0xffff);                    \
+	}
+#else
 #define CMDQ_GET_HIGH_ADDR(addr, highAddr)                                     \
 	{                                                                      \
 		if (enable_4G())                                               \
@@ -59,6 +65,7 @@
 		else                                                           \
 			highAddr = ((addr >> 32) & 0xffff);                    \
 	}
+#endif
 #endif
 #else
 #define CMDQ_GET_HIGH_ADDR(addr, highAddr)                                     \
@@ -69,6 +76,7 @@
 
 #define CMDQ_LONGSTRING_MAX (180)
 #define CMDQ_DELAY_RELEASE_RESOURCE_MS (1000)
+#define CMDQ_MAX_DUMP_REG_COUNT (2048)
 
 #define CMDQ_ENG_ISP_GROUP_BITS                                                \
 	((1LL << CMDQ_ENG_ISP_IMGI) | (1LL << CMDQ_ENG_ISP_IMGO) |             \
@@ -751,6 +759,8 @@ struct ContextStruct {
 
 	/* Resource manager information */
 	struct list_head resourceList; /* all resource list */
+
+	void *inst_check_buffer;
 
 #ifdef CMDQ_INSTRUCTION_COUNT
 	/* GCE instructions count information */
