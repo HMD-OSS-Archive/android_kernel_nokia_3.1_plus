@@ -80,6 +80,9 @@ static unsigned int g_LogBufIdx = 1;
 static unsigned int AFg_LogBufIdx[IMGSENSOR_SENSOR_IDX_MAX_NUM] = {1};
 
 static int _ccu_powerdown(bool need_check_ccu_stat);
+static int ccu_irq_enable(void);
+static int ccu_irq_disable(void);
+
 
 static inline unsigned int CCU_MsToJiffies(unsigned int Ms)
 {
@@ -225,7 +228,7 @@ irqreturn_t ccu_isr_handler(int irq, void *dev_id)
 				LOG_DBG(
 					"wakeup ccuInfo.AFWaitQueueHead done\n");
 			} else if (receivedCcuCmd.sensor_idx ==
-				IMGSENSOR_SENSOR_IDX_MAX_NUM) {
+				MSG_TO_APMCU_CAM_AFO_ABORT) {
 				for (n = 0;
 					n < IMGSENSOR_SENSOR_IDX_MAX_NUM; n++) {
 
@@ -430,7 +433,7 @@ out:
 
 int ccu_uninit_hw(struct ccu_device_s *device)
 {
-	ccu_i2c_free_dma_buf_mva_all();
+	ccu_i2c_free_dma_buf_mva_all(device);
 	device->i2c_dma_mva = 0;
 	if (enque_task) {
 		kthread_stop(enque_task);
@@ -599,6 +602,7 @@ int ccu_power(struct ccu_power_s *power)
 	} else if (power->bON == 4) {
 		/*CCU boot fail, just enable CG*/
 		if (ccuInfo.IsCcuPoweredOn == 1) {
+			ccu_irq_disable();
 			ccu_clock_disable();
 			ccuInfo.IsCcuPoweredOn = 0;
 		}
@@ -676,9 +680,10 @@ static int _ccu_powerdown(bool need_check_ccu_stat)
 CCU_PWDN_SKIP_STAT_CHK:
 
 	/*CCF & i2c uninit*/
+	ccu_irq_disable();
 	ccu_clock_disable();
 	ccu_i2c_controller_uninit_all();
-	ccu_i2c_free_dma_buf_mva_all();
+	ccu_i2c_free_dma_buf_mva_all(ccu_dev);
 	ccu_dev->i2c_dma_mva = 0;
 	ccuInfo.IsCcuPoweredOn = 0;
 
@@ -693,7 +698,7 @@ int ccu_run(void)
 	uint32_t status;
 
 	LOG_DBG("+:%s\n", __func__);
-
+	ccu_irq_enable();
 	/*smp_inner_dcache_flush_all();*/
 	/*LOG_DBG("cache flushed 2\n");*/
 	/*3. Set CCU_A_RESET. CCU_HW_RST=0*/
@@ -771,7 +776,7 @@ int ccu_run(void)
 			ccu_read_reg(ccu_base, CCU_STA_REG_SW_INIT_DONE));
 	LOG_DBG_MUST("ccu log test debug info: %x\n", ccu_read_reg(ccu_base, CCU_INFO29));
 
-	LOG_DBG_MUST("-:%s\n", __func__);
+	LOG_DBG_MUST("-:%s(0114)\n", __func__);
 
 	return 0;
 }
@@ -886,7 +891,14 @@ int ccu_flushLog(int argc, int *argv)
 
 int ccu_read_info_reg(int regNo)
 {
-	int *offset = (int *)(uintptr_t)(ccu_base + 0x60 + regNo * 4);
+	int *offset;
+
+	if (regNo < 0 || regNo >= 32) {
+		LOG_ERR("invalid regNo");
+		return 0;
+	}
+
+	offset = (int *)(uintptr_t)(ccu_base + 0x60 + regNo * 4);
 
 	LOG_DBG("ccu_read_info_reg: %x\n", (unsigned int)(*offset));
 
@@ -896,4 +908,32 @@ int ccu_read_info_reg(int regNo)
 int ccu_query_power_status(void)
 {
 	return ccuInfo.IsCcuPoweredOn;
+}
+
+int ccu_irq_enable(void)
+{
+	int ret = 0;
+
+	LOG_DBG_MUST("%s+.\n", __func__);
+
+	ccu_write_reg(ccu_base, EINTC_CLR, 0xFF);
+	ccu_read_reg(ccu_base, EINTC_ST);
+	if (request_irq(ccu_dev->irq_num, ccu_isr_handler,
+		IRQF_TRIGGER_NONE, "ccu", NULL)) {
+		LOG_ERR("fail to request ccu irq!\n");
+		ret = -ENODEV;
+	}
+
+	return 0;
+}
+
+int ccu_irq_disable(void)
+{
+	LOG_DBG_MUST("%s+.\n", __func__);
+
+	free_irq(ccu_dev->irq_num, NULL);
+	ccu_write_reg(ccu_base, EINTC_CLR, 0xFF);
+	ccu_read_reg(ccu_base, EINTC_ST);
+
+	return 0;
 }

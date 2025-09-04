@@ -274,6 +274,18 @@ struct display_primary_path_context {
 	enum lcm_power_state lcm_ps;
 };
 
+#define LCM_FPS_ARRAY_SIZE	32
+struct lcm_fps_ctx_t {
+	int is_inited;
+	spinlock_t lock;
+	atomic_t skip_update;
+	unsigned int dsi_mode;
+	unsigned int head_idx;
+	unsigned int num;
+	unsigned long long last_ns;
+	unsigned long long array[LCM_FPS_ARRAY_SIZE];
+};
+
 static inline char *lcm_power_state_to_string(enum lcm_power_state ps)
 {
 	switch (ps) {
@@ -350,8 +362,6 @@ int primary_display_diagnose_oneshot(const char *func, int line);
 
 int primary_display_get_info(struct disp_session_info *info);
 int primary_display_capture_framebuffer(unsigned long pbuf);
-int primary_display_capture_framebuffer_ovl(unsigned long pbuf,
-					    unsigned int format);
 
 int primary_display_is_video_mode(void);
 int primary_is_sec(void);
@@ -398,6 +408,7 @@ int primary_display_hbm_wait(bool en);
 int primary_display_pause(PRIMARY_DISPLAY_CALLBACK callback,
 			  unsigned int user_data);
 int primary_display_switch_dst_mode(int mode);
+int primary_display_switch_aod_mode(int mode);
 int primary_display_get_lcm_index(void);
 int primary_display_force_set_fps(unsigned int keep, unsigned int skip);
 int primary_display_set_fps(int fps);
@@ -483,5 +494,11 @@ enum DISP_MODULE_ENUM _get_dst_module_by_lcm(struct disp_lcm_handle *plcm);
 extern void check_mm0_clk_sts(void);
 int primary_display_get_dvfs_last_req(void);
 int primary_display_is_directlink_mode(void);
+
+extern struct lcm_fps_ctx_t lcm_fps_ctx;
+int lcm_fps_ctx_init(struct lcm_fps_ctx_t *fps_ctx);
+int lcm_fps_ctx_reset(struct lcm_fps_ctx_t *fps_ctx);
+int lcm_fps_ctx_update(struct lcm_fps_ctx_t *fps_ctx,
+					unsigned long long cur_ns);
 
 #endif

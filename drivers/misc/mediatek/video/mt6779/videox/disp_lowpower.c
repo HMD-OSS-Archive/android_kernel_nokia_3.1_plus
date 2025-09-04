@@ -82,6 +82,8 @@
 
 #define KICK_DUMP_MAX_LENGTH (1024 * 16 * 4)
 
+#define MAX_IDLE_RSZ_RATIO 250
+
 static unsigned char kick_string_buffer_analysize[KICK_DUMP_MAX_LENGTH];
 static unsigned int kick_buf_length;
 static atomic_t idlemgr_task_active = ATOMIC_INIT(1);
@@ -432,6 +434,10 @@ static void _release_wrot_resource_nolock(enum CMDQ_EVENT_ENUM resourceEvent)
 
 	/* 1.create and reset cmdq */
 	cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP, &qhandle);
+	if (qhandle == NULL) {
+		ASSERT(0);
+		return;
+	}
 	cmdqRecReset(qhandle);
 
 	/* 2.wait EOF */
@@ -813,7 +819,6 @@ static void _vdo_mode_enter_idle(void)
 	disp_pm_qos_set_ovl_bw(in_fps, out_fps, &bandwidth);
 	disp_pm_qos_update_bw(bandwidth);
 #endif
-
 }
 
 static void _vdo_mode_leave_idle(void)
@@ -873,7 +878,6 @@ static void _vdo_mode_leave_idle(void)
 	disp_pm_qos_set_ovl_bw(in_fps, out_fps, &bandwidth);
 	disp_pm_qos_update_bw(bandwidth);
 #endif
-
 }
 
 static void _cmd_mode_enter_idle(void)
@@ -906,7 +910,6 @@ static void _cmd_mode_enter_idle(void)
 		primary_display_request_dvfs_perf(SMI_BWC_SCEN_UI_IDLE,
 					  HRT_LEVEL_LEVEL0);
 #endif
-
 }
 
 static void _cmd_mode_leave_idle(void)
@@ -1021,6 +1024,23 @@ unsigned long long disp_lp_set_idle_check_interval(
 	return old_interval;
 }
 
+static int get_rsz_ratio(void)
+{
+	struct disp_ddp_path_config *config =
+		dpmgr_path_get_last_config(primary_get_dpmgr_handle());
+	struct RSZ_CONFIG_STRUCT *rsz_config = &config->rsz_config;
+	int ratio_w, ratio_h;
+
+	if (rsz_config->frm_in_w == 0 || rsz_config->frm_in_h == 0
+		|| rsz_config->frm_out_w == 0 || rsz_config->frm_out_h == 0)
+		return 100;
+
+	ratio_w = rsz_config->frm_out_w * 100 / rsz_config->frm_in_w;
+	ratio_h = rsz_config->frm_out_h * 100 / rsz_config->frm_in_h;
+
+	return (ratio_w >= ratio_h) ? ratio_w : ratio_h;
+}
+
 static int _primary_path_idlemgr_monitor_thread(void *data)
 {
 	int ret = 0;
@@ -1062,12 +1082,25 @@ static int _primary_path_idlemgr_monitor_thread(void *data)
 			continue;
 		}
 
+		/* Do not enter idle when we needs calculate FPS */
+		if (atomic_read(&lcm_fps_ctx.skip_update) == 0) {
+			DISPMSG("skip idle due to fps calculation\n");
+			primary_display_manual_unlock();
+			continue;
+		}
+
 #ifdef CONFIG_MTK_DISPLAY_120HZ_SUPPORT
 		if (primary_display_get_lcm_refresh_rate() == 120) {
 			primary_display_manual_unlock();
 			continue;
 		}
 #endif
+
+		if (primary_display_is_video_mode() &&
+			get_rsz_ratio() >= MAX_IDLE_RSZ_RATIO) {
+			primary_display_manual_unlock();
+			continue;
+		}
 
 		t_idle = local_clock() - idlemgr_pgc->idlemgr_last_kick_time;
 		if (t_idle < idle_check_interval * 1000 * 1000) {
