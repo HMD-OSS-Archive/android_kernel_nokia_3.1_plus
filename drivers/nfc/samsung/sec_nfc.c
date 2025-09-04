@@ -374,6 +374,33 @@ detect_end:
     return ret;
 }
 
+/*
+//Put the chip to sleep mode while HAL does not open this driver.
+//This is the workaround the %1 percent of leak current "20~100mA" issues via TVDDI with 5V voltage, when NFC is off.
+//In this case, chip will be sleep mode, and will draw 39uA current, it is the same as NFC is on, and no NFC activity.
+
+*/
+static int sec_nfc_force_sleep(struct sec_nfc_info *info)
+{
+    struct sec_nfc_platform_data *pdata = info->pdata;
+    int ret;
+
+     printk("%s: start: %p\n", __func__, info);
+
+     gpio_set_value(pdata->ven, SEC_NFC_PW_OFF);
+     gpio_set_value(pdata->firm, SEC_NFC_FW_OFF);
+
+     msleep(50);
+     gpio_set_value(pdata->ven, SEC_NFC_PW_ON);
+
+     msleep(50);
+
+     gpio_set_value(pdata->wake, SEC_NFC_WAKE_SLEEP);
+     printk("%s: exit\n", __func__);
+
+     ret = 0;
+     return ret;
+}
 int sec_nfc_i2c_probe(struct i2c_client *client)
 {
         struct device *dev = &client->dev;
@@ -424,6 +451,7 @@ int sec_nfc_i2c_probe(struct i2c_client *client)
  */
         ret = sec_nfc_chip_detect(info);
         printk("sec_nfc_chip_detect=%d\n",ret);
+        sec_nfc_force_sleep(info);
         return ret;
 
 err_irq_req:
@@ -641,6 +669,7 @@ static int sec_nfc_close(struct inode *inode, struct file *file)
 
         mutex_lock(&info->mutex);
         sec_nfc_set_mode(info, SEC_NFC_MODE_OFF);
+        sec_nfc_force_sleep(info);
         mutex_unlock(&info->mutex);
 
         return 0;
